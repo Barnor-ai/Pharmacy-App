@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pharmacy Management System</title>
+    <meta name="description" content="Enterprise Pharmacy Management, POS & Inventory System." />
+    <meta name="theme-color" content="#059669" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <meta property="og:title" content="Pharmacy Management System" />
+    <meta property="og:description" content="Enterprise Pharmacy Management, POS & Inventory System." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then(reg => {
+            console.log('Pharmacy Service Worker registered successfully:', reg.scope);
+          }).catch(err => {
+            console.log('Service worker registration failed:', err);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
+

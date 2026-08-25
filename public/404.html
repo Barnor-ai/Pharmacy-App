@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PharmaCore - Redirecting...</title>
+    <script>
+      // Single Page App redirect for static hosts
+      sessionStorage.redirect = location.href;
+      window.location.replace('/');
+    </script>
+    <meta http-equiv="refresh" content="0;URL='/'" />
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background-color: #0f172a;
+        color: #f8fafc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+        text-align: center;
+      }
+      .loader {
+        border: 3px solid rgba(16, 185, 129, 0.2);
+        border-top: 3px solid #10b981;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 16px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <div class="loader"></div>
+      <p style="font-size: 14px; font-weight: 600; color: #10b981;">Loading PharmaCore...</p>
+    </div>
+  </body>
+</html>

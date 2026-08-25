@@ -1,0 +1,6 @@
+{
+  "name": "Pharmacy Management System",
+  "description": "A comprehensive pharmacy management application with inventory, POS, prescriptions, sales tracking, suppliers, customers, reports, and AI assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
