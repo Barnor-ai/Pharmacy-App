@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { User, UserRole } from '../types';
+import { isRecoveryModeActive, markRecoveryMode, getInitialRecoveryDetails } from './recoveryState';
 
 export interface AuthResponse {
   success: boolean;
@@ -110,17 +111,109 @@ export async function signUpWithSupabase(
 }
 
 /**
+ * Determine the accurate, non-hardcoded redirect URL for Supabase password recovery
+ */
+export function getResetPasswordRedirectUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/reset-password`;
+  }
+  return 'https://pharmacymgtsys.netlify.app/reset-password';
+}
+
+/**
+ * Parse URL hash and search query parameters to detect Supabase Auth recovery tokens or error states
+ */
+export function parseRecoveryUrlParams(): {
+  isRecovery: boolean;
+  hasError: boolean;
+  errorCode: string | null;
+  errorDescription: string | null;
+  accessToken: string | null;
+  type: string | null;
+} {
+  const initial = getInitialRecoveryDetails();
+  if (initial.isRecovery || initial.hasError) {
+    return initial;
+  }
+
+  if (typeof window === 'undefined') {
+    return initial;
+  }
+
+  const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
+  const search = window.location.search.startsWith('?') ? window.location.search.slice(1) : window.location.search;
+
+  const hashParams = new URLSearchParams(hash);
+  const searchParams = new URLSearchParams(search);
+
+  const type = hashParams.get('type') || searchParams.get('type');
+  const errorCode = hashParams.get('error_code') || searchParams.get('error_code');
+  const error = hashParams.get('error') || searchParams.get('error');
+  const rawErrorDesc = hashParams.get('error_description') || searchParams.get('error_description');
+  const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+  const code = hashParams.get('code') || searchParams.get('code');
+  const token = hashParams.get('token') || searchParams.get('token');
+
+  let errorDescription: string | null = null;
+  if (rawErrorDesc) {
+    try {
+      errorDescription = decodeURIComponent(rawErrorDesc.replace(/\+/g, ' '));
+    } catch {
+      errorDescription = rawErrorDesc;
+    }
+  }
+
+  const isRecovery =
+    isRecoveryModeActive() ||
+    type === 'recovery' ||
+    hash.includes('type=recovery') ||
+    search.includes('type=recovery') ||
+    window.location.pathname === '/reset-password' ||
+    (Boolean(code || token) && (window.location.pathname.includes('reset') || window.location.pathname.includes('recovery')));
+
+  const hasError = !!(errorCode || error || errorDescription);
+
+  return {
+    isRecovery,
+    hasError,
+    errorCode: errorCode || error,
+    errorDescription,
+    accessToken,
+    type
+  };
+}
+
+export function getCachedRecoveryIntent() {
+  const details = getInitialRecoveryDetails();
+  return {
+    isRecovery: details.isRecovery || isRecoveryModeActive(),
+    hasError: details.hasError,
+    errorCode: details.errorCode,
+    errorDescription: details.errorDescription
+  };
+}
+
+export function setCachedRecoveryIntent(isRecovery: boolean, hasError = false, errorDescription: string | null = null) {
+  markRecoveryMode(isRecovery, { hasError, errorDescription });
+}
+
+/**
  * Send password reset email via Supabase Auth
  */
 export async function sendPasswordResetEmail(email: string): Promise<AuthResponse> {
   try {
-    const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}` : undefined;
+    const redirectUrl = getResetPasswordRedirectUrl();
+    console.log('[Supabase Auth] Dispatching resetPasswordForEmail with redirectTo:', redirectUrl);
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: redirectUrl
     });
 
     if (error) {
-      return { success: false, message: error.message };
+      let friendlyMsg = error.message;
+      if (error.message.includes('rate limit')) {
+        friendlyMsg = 'Too many password reset requests. Please wait a few minutes before trying again.';
+      }
+      return { success: false, message: friendlyMsg };
     }
 
     return {
@@ -142,13 +235,19 @@ export async function updateSupabasePassword(newPassword: string): Promise<AuthR
     });
 
     if (error) {
-      return { success: false, message: error.message };
+      let friendlyMsg = error.message;
+      if (error.message.includes('same as the old password') || error.message.includes('different from the old')) {
+        friendlyMsg = 'New password should be different from your previous password.';
+      } else if (error.message.includes('Password should be at least')) {
+        friendlyMsg = 'Password must be at least 8 characters in length.';
+      }
+      return { success: false, message: friendlyMsg };
     }
 
     return {
       success: true,
       user: data?.user ? mapSupabaseUserToAppUser(data.user) : null,
-      message: 'Password updated successfully!'
+      message: 'Your password has been updated successfully.'
     };
   } catch (err: any) {
     return { success: false, message: err?.message || 'Failed to update password.' };

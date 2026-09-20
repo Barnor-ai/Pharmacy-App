@@ -21,7 +21,8 @@ import {
   Mail,
   Send,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck
 } from 'lucide-react';
 
 export const Inventory: React.FC = () => {
@@ -230,9 +231,6 @@ export const Inventory: React.FC = () => {
             <span className={`font-bold font-mono ${!canAddMedicine ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>
               {limits.currentMedicines} / {limits.maxMedicines.toLocaleString()}
             </span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-500/10 text-teal-600 dark:text-teal-400">
-              {plan?.name || 'Starter'}
-            </span>
           </div>
 
           <button
@@ -262,18 +260,63 @@ export const Inventory: React.FC = () => {
         </div>
       </div>
 
+      {/* Limit & Expiry Warnings */}
       {limitWarning && (
-        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-bold flex items-center justify-between gap-3 animate-in fade-in">
+        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs font-bold flex items-center justify-between gap-3 animate-in fade-in">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{limitWarning}</span>
           </div>
           <button
             onClick={() => setLimitWarning(null)}
-            className="p-1 text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-white"
+            className="p-1 text-rose-700 hover:text-rose-900 dark:text-rose-300 dark:hover:text-white cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* Proactive SKU Quota Warnings */}
+      {canAddMedicine && limits.medicineWarningLevel === 'critical_90' && !isExpired && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                Medicine SKU Quota Warning: {limits.currentMedicines} of {limits.maxMedicines.toLocaleString()} items ({limits.medicineUsagePercent}% capacity)
+              </p>
+              <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
+                You are approaching your plan SKU catalog limit. Upgrade to unlock expanded catalog capacity.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {canAddMedicine && limits.medicineWarningLevel === 'warning_80' && !isExpired && (
+        <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+            <p className="text-xs text-blue-900 dark:text-blue-200">
+              SKU Inventory Usage: <span className="font-bold">{limits.currentMedicines} of {limits.maxMedicines.toLocaleString()} items</span> ({limits.medicineUsagePercent}% capacity).
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isExpired && (
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/40 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-rose-900 dark:text-rose-200">
+                Subscription / Trial Expired — Inventory Read-Only Mode
+              </p>
+              <p className="text-[11px] text-rose-800/80 dark:text-rose-300/80">
+                All medicine records, batches, and price books remain safely preserved. Reactivate subscription to add new stock items.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { PharmacyProvider, usePharmacy } from './context/PharmacyContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
 import { Layout } from './components/Layout';
@@ -53,8 +53,27 @@ const MainContent: React.FC = () => {
 };
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, authLoading } = usePharmacy();
+  const {
+    isAuthenticated,
+    authLoading,
+    isPasswordRecovery,
+    currentRoute,
+    navigate
+  } = usePharmacy();
 
+  // 1. ABSOLUTE HIGHEST PRIORITY: Password Recovery Mode or Dedicated /reset-password Route
+  // Whenever the user has a recovery session, recovery parameters, or is on /reset-password,
+  // NEVER open the Login page, NEVER show the Dashboard, NEVER redirect before Reset Password renders!
+  if (currentRoute === '/reset-password' || isPasswordRecovery) {
+    return (
+      <AuthPage
+        initialMode="reset-password"
+        onNavigate={navigate}
+      />
+    );
+  }
+
+  // 2. Auth Loading screen for normal authentication initialization
   if (authLoading) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
@@ -71,10 +90,24 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // 3. Unauthenticated user flow (Login, Sign Up, Forgot Password)
   if (!isAuthenticated) {
-    return <AuthPage />;
+    const initialMode =
+      currentRoute === '/signup'
+        ? 'signup'
+        : currentRoute === '/forgot-password'
+        ? 'forgot-password'
+        : 'login';
+
+    return (
+      <AuthPage
+        initialMode={initialMode}
+        onNavigate={navigate}
+      />
+    );
   }
 
+  // 4. Normal authenticated workspace
   return (
     <Layout>
       <MainContent />
@@ -91,4 +124,3 @@ export default function App() {
     </PharmacyProvider>
   );
 }
-

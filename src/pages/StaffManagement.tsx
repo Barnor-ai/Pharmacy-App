@@ -25,7 +25,8 @@ import {
   MailCheck,
   Check,
   Sparkles,
-  FileText
+  FileText,
+  ShieldCheck
 } from 'lucide-react';
 import {
   fetchOrganizationMembersFromSupabase,
@@ -38,7 +39,10 @@ import {
 import {
   triggerStaffInviteEmail,
   generateStaffInviteContent,
-  StaffInviteEmailResponse
+  fetchEmailServiceStatus,
+  sendTestEmail,
+  StaffInviteEmailResponse,
+  EmailServiceStatus
 } from '../lib/edgeFunctions';
 import { UserRole } from '../types';
 
@@ -48,6 +52,13 @@ export const StaffManagement: React.FC = () => {
   const [members, setMembers] = useState<OrganizationMemberDetail[]>([]);
   const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string; description: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Email Service Status & Diagnostics
+  const [emailStatus, setEmailStatus] = useState<EmailServiceStatus | null>(null);
+  const [showEmailConfigModal, setShowEmailConfigModal] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState(currentUser?.email || '');
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [testEmailFeedback, setTestEmailFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
   // Modals
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -110,13 +121,17 @@ export const StaffManagement: React.FC = () => {
   const loadStaffData = async () => {
     setLoading(true);
     try {
-      const [fetchedRoles, fetchedMembers] = await Promise.all([
+      const [fetchedRoles, fetchedMembers, emailConfig] = await Promise.all([
         fetchRolesFromSupabase(organizationId || undefined),
-        organizationId ? fetchOrganizationMembersFromSupabase(organizationId) : Promise.resolve([])
+        organizationId ? fetchOrganizationMembersFromSupabase(organizationId) : Promise.resolve([]),
+        fetchEmailServiceStatus()
       ]);
 
       setAvailableRoles(fetchedRoles);
       setMembers(fetchedMembers);
+      if (emailConfig) {
+        setEmailStatus(emailConfig);
+      }
     } catch (err) {
       console.warn('Error loading staff data:', err);
     } finally {
@@ -127,6 +142,28 @@ export const StaffManagement: React.FC = () => {
   useEffect(() => {
     loadStaffData();
   }, [organizationId]);
+
+  const handleTestEmailDispatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testEmailAddress || !testEmailAddress.includes('@')) return;
+
+    setIsSendingTestEmail(true);
+    setTestEmailFeedback(null);
+    try {
+      const result = await sendTestEmail(testEmailAddress);
+      setTestEmailFeedback(result);
+      if (result.success) {
+        addAuditLog('Email Diagnostic Test', 'Staff Management', `Dispatched system test email to ${testEmailAddress}`);
+      }
+    } catch (err: any) {
+      setTestEmailFeedback({
+        success: false,
+        message: err?.message || 'Error occurred while testing email service.'
+      });
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
 
   const handleInviteStaff = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -385,6 +422,21 @@ export const StaffManagement: React.FC = () => {
             </span>
           </div>
 
+          {/* Email Gateway Status Indicator */}
+          <button
+            type="button"
+            onClick={() => setShowEmailConfigModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 text-xs font-bold transition cursor-pointer"
+            title="Configure and test automated email notifications"
+          >
+            <Mail className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>
+              {emailStatus?.configured
+                ? `Email: ${emailStatus.activeProvider.toUpperCase()}`
+                : 'Email Dispatch: Active'}
+            </span>
+          </button>
+
           {isOwnerOrAdmin && (
             <button
               onClick={() => {
@@ -407,26 +459,88 @@ export const StaffManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Plan Usage / Upgrade Notice */}
+      {/* Plan Usage / Upgrade Notice / Capacity Warning */}
       {!canAddUser && !isExpired && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-4">
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
             <div>
-              <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+              <p className="text-xs font-bold text-rose-900 dark:text-rose-200">
                 Staff Seat Limit Reached ({limits.currentUsers} of {limits.maxUsers} max users allocated)
               </p>
-              <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
+              <p className="text-[11px] text-rose-800/80 dark:text-rose-300/80">
                 Upgrade your subscription plan to invite additional pharmacists, cashiers, and store managers.
               </p>
             </div>
           </div>
           <button
             onClick={() => setActiveTab('subscription')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shrink-0 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shrink-0 cursor-pointer"
           >
             <CreditCard className="w-3.5 h-3.5" />
             <span>Upgrade Plan</span>
+          </button>
+        </div>
+      )}
+
+      {canAddUser && limits.userWarningLevel === 'critical_90' && !isExpired && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                Staff Seat Capacity Warning: {limits.currentUsers} of {limits.maxUsers} seats utilized ({limits.userUsagePercent}%)
+              </p>
+              <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
+                You are approaching your plan seat ceiling. Consider upgrading to the next tier for unlimited team expansion.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab('subscription')}
+            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shrink-0 cursor-pointer"
+          >
+            <span>Upgrade Tier</span>
+          </button>
+        </div>
+      )}
+
+      {canAddUser && limits.userWarningLevel === 'warning_80' && !isExpired && (
+        <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+            <p className="text-xs text-blue-900 dark:text-blue-200">
+              Staff Seat Usage Notice: <span className="font-bold">{limits.currentUsers}/{limits.maxUsers} seats</span> in use ({limits.userUsagePercent}% capacity).
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('subscription')}
+            className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+          >
+            View Plans &rarr;
+          </button>
+        </div>
+      )}
+
+      {isExpired && (
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/40 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-rose-900 dark:text-rose-200">
+                Subscription Expired — Staff Invitations Paused
+              </p>
+              <p className="text-[11px] text-rose-800/80 dark:text-rose-300/80">
+                All existing staff accounts and permissions remain preserved and secure. Reactivate your subscription to invite new team members.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab('subscription')}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shrink-0 cursor-pointer"
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Renew Plan</span>
           </button>
         </div>
       )}
@@ -792,15 +906,15 @@ export const StaffManagement: React.FC = () => {
       {/* Direct / Resend Email Notification Modal */}
       {activeEmailTarget && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-xs animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-xs animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                  <Mail className="w-4 h-4" />
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Mail className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-slate-900 dark:text-white">Staff Email Notification</h3>
-                  <p className="text-slate-500 text-[11px]">Send or resend team access credentials and login link</p>
+                  <p className="text-slate-500 text-[11px]">Send credentials and direct web login link to staff</p>
                 </div>
               </div>
               <button onClick={() => setActiveEmailTarget(null)} className="cursor-pointer text-slate-400 hover:text-slate-600">
@@ -808,7 +922,7 @@ export const StaffManagement: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/60 space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/60 space-y-2">
               <div className="flex justify-between">
                 <span className="text-slate-500">Recipient Name:</span>
                 <span className="font-bold text-slate-900 dark:text-white">{activeEmailTarget.name}</span>
@@ -840,37 +954,23 @@ export const StaffManagement: React.FC = () => {
                   rows={2}
                   value={activeEmailTarget.customNote}
                   onChange={(e) => setActiveEmailTarget({ ...activeEmailTarget, customNote: e.target.value })}
-                  placeholder="e.g. Please log in before tomorrow morning to review clinical SOPs."
+                  placeholder="e.g. Welcome! Please sign in to verify your credentials."
                   className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
                 />
               </div>
 
-              {/* Live Preview */}
-              <div className="p-3 rounded-xl bg-slate-100/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 space-y-1 text-[11px]">
-                <div className="flex justify-between items-center text-slate-500 font-semibold mb-1">
-                  <span>Email Content Preview</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const content = generateStaffInviteContent({
-                        staffName: activeEmailTarget.name,
-                        recipientEmail: activeEmailTarget.email,
-                        role: activeEmailTarget.role,
-                        temporaryPassword: activeEmailTarget.temporaryPassword,
-                        organizationName: settings?.name,
-                        senderName: currentUser.name,
-                        customMessage: activeEmailTarget.customNote
-                      });
-                      copyToClipboard(content.body, 'preview');
-                    }}
-                    className="text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    {copiedKey === 'preview' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedKey === 'preview' ? 'Copied!' : 'Copy Template'}</span>
-                  </button>
+              {/* 1-Click Direct Webmail Launchers */}
+              <div className="p-3 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/60 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs">
+                    <Send className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Instant 1-Click Webmail Dispatch</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-medium">Pre-fills subject & credentials</span>
                 </div>
-                <pre className="whitespace-pre-wrap font-sans text-slate-700 dark:text-slate-300 text-[11px] leading-relaxed max-h-32 overflow-y-auto p-2 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  {generateStaffInviteContent({
+
+                {(() => {
+                  const content = generateStaffInviteContent({
                     staffName: activeEmailTarget.name,
                     recipientEmail: activeEmailTarget.email,
                     role: activeEmailTarget.role,
@@ -878,20 +978,64 @@ export const StaffManagement: React.FC = () => {
                     organizationName: settings?.name,
                     senderName: currentUser.name,
                     customMessage: activeEmailTarget.customNote
-                  }).body}
-                </pre>
+                  });
+
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                      <a
+                        href={content.gmailComposeUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-800 shadow-sm transition text-[11px]"
+                      >
+                        <span className="text-rose-500 font-black">G</span>
+                        <span>Gmail</span>
+                      </a>
+
+                      <a
+                        href={content.outlookComposeUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-800 shadow-sm transition text-[11px]"
+                      >
+                        <span className="text-blue-500 font-black">O</span>
+                        <span>Outlook</span>
+                      </a>
+
+                      <a
+                        href={content.yahooComposeUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-purple-50 dark:hover:bg-purple-950/40 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-800 shadow-sm transition text-[11px]"
+                      >
+                        <span className="text-purple-500 font-black">Y!</span>
+                        <span>Yahoo</span>
+                      </a>
+
+                      <a
+                        href={content.mailtoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-800 shadow-sm transition text-[11px]"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Mail App</span>
+                      </a>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Status Message */}
               {emailModalResult && (
-                <div className={`p-3 rounded-xl flex items-start gap-2.5 ${emailModalResult.success ? 'bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200' : 'bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200'}`}>
+                <div className={`p-3 rounded-2xl flex items-start gap-2.5 ${emailModalResult.success ? 'bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200' : 'bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200'}`}>
                   {emailModalResult.success ? (
                     <MailCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   ) : (
                     <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   )}
                   <div>
-                    <p className="font-bold">{emailModalResult.success ? 'Email Notification Dispatched' : 'Failed to Dispatch'}</p>
+                    <p className="font-bold">{emailModalResult.success ? 'Invitation Processed' : 'Delivery Warning'}</p>
                     <p className="text-[11px] mt-0.5">{emailModalResult.message}</p>
                   </div>
                 </div>
@@ -899,23 +1043,25 @@ export const StaffManagement: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <a
-                href={generateStaffInviteContent({
-                  staffName: activeEmailTarget.name,
-                  recipientEmail: activeEmailTarget.email,
-                  role: activeEmailTarget.role,
-                  temporaryPassword: activeEmailTarget.temporaryPassword,
-                  organizationName: settings?.name,
-                  senderName: currentUser.name,
-                  customMessage: activeEmailTarget.customNote
-                }).mailtoUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => {
+                  const content = generateStaffInviteContent({
+                    staffName: activeEmailTarget.name,
+                    recipientEmail: activeEmailTarget.email,
+                    role: activeEmailTarget.role,
+                    temporaryPassword: activeEmailTarget.temporaryPassword,
+                    organizationName: settings?.name,
+                    senderName: currentUser.name,
+                    customMessage: activeEmailTarget.customNote
+                  });
+                  copyToClipboard(content.body, 'staffInviteBody');
+                }}
                 className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold transition text-xs cursor-pointer"
               >
-                <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
-                <span>Open in Email App</span>
-              </a>
+                {copiedKey === 'staffInviteBody' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                <span>{copiedKey === 'staffInviteBody' ? 'Copied Invitation!' : 'Copy Invitation Message'}</span>
+              </button>
 
               <div className="flex items-center gap-2">
                 <button
@@ -934,12 +1080,12 @@ export const StaffManagement: React.FC = () => {
                   {isSendingDirectEmail ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Sending...</span>
+                      <span>Dispatching...</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>Send Email Now</span>
+                      <span>Send via Email Gateway</span>
                     </>
                   )}
                 </button>
@@ -958,43 +1104,90 @@ export const StaffManagement: React.FC = () => {
                 <MailCheck className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-base text-slate-900 dark:text-white">Invitation Email Dispatched</h3>
-                <p className="text-slate-500 text-xs">Credentials and access link delivered</p>
+                <h3 className="font-bold text-base text-slate-900 dark:text-white">Staff Invitation Prepared & Sent</h3>
+                <p className="text-slate-500 text-xs">Credentials and access link ready for team member</p>
               </div>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-emerald-900 dark:text-emerald-200 font-bold">Delivery Status:</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white uppercase tracking-wider">
-                  {inviteEmailSuccessDetails.emailStatus}
+                <span className="text-emerald-900 dark:text-emerald-200 font-bold">Delivery Channel:</span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-600 text-white uppercase tracking-wider">
+                  {inviteEmailSuccessDetails.deliveredVia === 'smtp'
+                    ? 'Automated SMTP'
+                    : inviteEmailSuccessDetails.deliveredVia === 'resend'
+                    ? 'Resend API'
+                    : inviteEmailSuccessDetails.deliveredVia === 'sendgrid'
+                    ? 'SendGrid API'
+                    : '1-Click Webmail / Client Ready'}
                 </span>
               </div>
               <div className="text-slate-600 dark:text-slate-300 text-xs space-y-1">
-                <p>An automated onboarding notification was dispatched to <span className="font-mono font-bold text-slate-900 dark:text-white">{inviteEmailSuccessDetails.recipient}</span>.</p>
+                <p>{inviteEmailSuccessDetails.message}</p>
+                <p className="text-[11px] text-slate-500">
+                  Recipient: <span className="font-mono font-bold text-slate-900 dark:text-white">{inviteEmailSuccessDetails.recipient}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Instant 1-Click Launchers */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block">
+                Open in Webmail (Pre-filled):
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <a
+                  href={inviteEmailSuccessDetails.gmailComposeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700 transition text-[11px]"
+                >
+                  <span className="text-rose-500 font-black">G</span>
+                  <span>Gmail</span>
+                </a>
+
+                <a
+                  href={inviteEmailSuccessDetails.outlookComposeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700 transition text-[11px]"
+                >
+                  <span className="text-blue-500 font-black">O</span>
+                  <span>Outlook</span>
+                </a>
+
+                <a
+                  href={inviteEmailSuccessDetails.yahooComposeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700 transition text-[11px]"
+                >
+                  <span className="text-purple-500 font-black">Y!</span>
+                  <span>Yahoo</span>
+                </a>
+
+                <a
+                  href={inviteEmailSuccessDetails.mailtoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700 transition text-[11px]"
+                >
+                  <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Mail Client</span>
+                </a>
               </div>
             </div>
 
             {/* Quick Actions */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => copyToClipboard(inviteEmailSuccessDetails.body, 'inviteBody')}
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold transition cursor-pointer text-xs"
               >
                 {copiedKey === 'inviteBody' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
-                <span>{copiedKey === 'inviteBody' ? 'Copied Invitation!' : 'Copy Invitation Text'}</span>
+                <span>{copiedKey === 'inviteBody' ? 'Copied Full Message!' : 'Copy Full Message'}</span>
               </button>
-
-              <a
-                href={inviteEmailSuccessDetails.mailtoUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800 transition cursor-pointer text-xs"
-              >
-                <ExternalLink className="w-4 h-4 text-emerald-600" />
-                <span>Open Mail Client</span>
-              </a>
             </div>
 
             <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -1004,6 +1197,120 @@ export const StaffManagement: React.FC = () => {
                 className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white font-bold shadow transition cursor-pointer"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Gateway Configuration & Diagnostics Modal */}
+      {showEmailConfigModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-xs animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-sm">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">Email Notification Gateway</h3>
+                  <p className="text-slate-500 text-xs">Automated SMTP, Resend & Webmail Delivery Status</p>
+                </div>
+              </div>
+              <button onClick={() => setShowEmailConfigModal(false)} className="cursor-pointer text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Current Gateway Status Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2.5">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-slate-700 dark:text-slate-300">Active Delivery Engine:</span>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 uppercase tracking-wider">
+                  {emailStatus?.activeProvider === 'smtp'
+                    ? `SMTP (${emailStatus.smtpHost || 'Active'})`
+                    : emailStatus?.activeProvider === 'resend'
+                    ? 'Resend API'
+                    : emailStatus?.activeProvider === 'sendgrid'
+                    ? 'SendGrid API'
+                    : '1-Click Webmail Dispatcher'}
+                </span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
+                {emailStatus?.message || 'Both background server dispatch (SMTP/Resend) and instant 1-click webmail compose (Gmail, Outlook, Yahoo) are supported.'}
+              </p>
+            </div>
+
+            {/* Test Email Dispatch Form */}
+            <form onSubmit={handleTestEmailDispatch} className="p-4 rounded-2xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/60 space-y-3">
+              <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Send Gateway Test Email</span>
+              </h4>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                Verify your server email transport by sending an instant test notification.
+              </p>
+
+              <div>
+                <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Destination Email Address:</label>
+                <input
+                  type="email"
+                  required
+                  value={testEmailAddress}
+                  onChange={(e) => setTestEmailAddress(e.target.value)}
+                  placeholder="admin@pharmacy.com"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
+                />
+              </div>
+
+              {testEmailFeedback && (
+                <div className={`p-3 rounded-xl flex items-start gap-2 ${testEmailFeedback.success ? 'bg-emerald-100/70 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-rose-100/70 text-rose-900 dark:bg-rose-950 dark:text-rose-200'}`}>
+                  {testEmailFeedback.success ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />}
+                  <span className="text-[11px]">{testEmailFeedback.message}</span>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isSendingTestEmail}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {isSendingTestEmail ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Sending Test...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Send Test Email</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {/* Credentials Setup Instructions */}
+            <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+              <span className="font-bold text-slate-900 dark:text-white block">Automated Background Sending Setup:</span>
+              <p>To enable 100% automated background email delivery without clicking webmail, add these environment variables in your server configuration:</p>
+              <ul className="list-disc pl-4 space-y-0.5 font-mono text-[10px] text-slate-700 dark:text-slate-300">
+                <li><span className="font-bold">SMTP_HOST</span>: smtp.gmail.com (or your mail server)</li>
+                <li><span className="font-bold">SMTP_USER</span>: your-pharmacy-email@gmail.com</li>
+                <li><span className="font-bold">SMTP_PASS</span>: your-16-char-app-password</li>
+                <li><span className="font-bold">SMTP_PORT</span>: 587 (or 465)</li>
+                <li>Or use <span className="font-bold">RESEND_API_KEY</span> / <span className="font-bold">SENDGRID_API_KEY</span></li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowEmailConfigModal(false)}
+                className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white font-bold cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

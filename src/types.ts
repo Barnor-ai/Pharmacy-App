@@ -195,6 +195,10 @@ export interface PharmacySettings {
   currency: string;
   currencySymbol: string;
   vatRate: number; // percentage, e.g. 5 or 15
+  country?: string; // Country name or code, e.g. "United States", "Ghana", "Germany"
+  countryCode?: string; // e.g. "US", "GH", "DE"
+  language?: string; // Primary operational language e.g. "English (US)", "French (Français)"
+  languageCode?: string; // e.g. "en-US", "fr-FR"
   timezone?: string;
   invoicePrefix?: string;
   logoUrl?: string;
@@ -226,9 +230,12 @@ export type SubscriptionStatus =
   | 'trialing'
   | 'active'
   | 'past_due'
+  | 'grace_period'
   | 'cancelled'
   | 'expired'
   | 'incomplete';
+
+export type QuotaWarningLevel = 'normal' | 'warning_80' | 'critical_90' | 'limit_reached';
 
 export interface SubscriptionPlan {
   id: string;
@@ -287,4 +294,8 @@ export interface PlanLimits {
   maxMedicines: number;
   currentUsers: number;
   currentMedicines: number;
+  userUsagePercent: number;
+  medicineUsagePercent: number;
+  userWarningLevel: QuotaWarningLevel;
+  medicineWarningLevel: QuotaWarningLevel;
 }

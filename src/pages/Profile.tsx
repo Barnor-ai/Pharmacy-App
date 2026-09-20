@@ -13,7 +13,8 @@ import {
   Loader2,
   Sparkles,
   Calendar,
-  Building
+  Building,
+  Trash2
 } from 'lucide-react';
 import { updateUserProfileInSupabase, uploadAvatarToSupabase } from '../lib/supabaseService';
 
@@ -28,6 +29,7 @@ export const Profile: React.FC = () => {
   // UI states
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isRemovingAvatar, setIsRemovingAvatar] = useState(false);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
   const [profileErrorMsg, setProfileErrorMsg] = useState<string | null>(null);
 
@@ -71,6 +73,27 @@ export const Profile: React.FC = () => {
       setProfileErrorMsg(err?.message || 'Error uploading avatar.');
     } finally {
       setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setIsRemovingAvatar(true);
+    setProfileErrorMsg(null);
+    try {
+      const res = await updateUserProfileInSupabase(currentUser.id, fullName || currentUser.name, null);
+      if (res.success) {
+        setAvatarUrl(undefined);
+        setCurrentUser({ ...currentUser, avatar: undefined });
+        addAuditLog('Removed Profile Avatar', 'User Profile', `Removed avatar photo for ${currentUser.email}`);
+        setProfileSuccessMsg('Profile photo removed successfully.');
+        setTimeout(() => setProfileSuccessMsg(null), 3000);
+      } else {
+        setProfileErrorMsg(res.error || 'Failed to remove photo.');
+      }
+    } catch (err: any) {
+      setProfileErrorMsg(err?.message || 'Error removing photo.');
+    } finally {
+      setIsRemovingAvatar(false);
     }
   };
 
@@ -227,6 +250,40 @@ export const Profile: React.FC = () => {
             <p className="text-[11px] text-slate-400 dark:text-slate-500 pt-1">
               Supports secure photo upload. Maximum file size: 5MB.
             </p>
+
+            {/* Profile Photo Actions: Upload & Remove */}
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingAvatar || isRemovingAvatar}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition disabled:opacity-50"
+              >
+                {isUploadingAvatar ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                ) : (
+                  <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                )}
+                <span>{isUploadingAvatar ? 'Uploading...' : 'Change Photo'}</span>
+              </button>
+
+              {avatarUrl && (
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  disabled={isUploadingAvatar || isRemovingAvatar}
+                  className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 font-bold text-xs flex items-center gap-1.5 transition disabled:opacity-50"
+                  title="Remove Profile Photo"
+                >
+                  {isRemovingAvatar ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                  )}
+                  <span>{isRemovingAvatar ? 'Removing...' : 'Remove Photo'}</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

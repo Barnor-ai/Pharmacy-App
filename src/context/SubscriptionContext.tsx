@@ -11,12 +11,15 @@ import {
   schedulePlanDowngradeInSupabase,
   isTrialActive,
   isSubscriptionActive,
+  isSubscriptionInGracePeriod,
+  getGraceDaysRemaining,
   getTrialDaysRemaining,
   getPlanLimits,
   canAddMoreUsers,
   canAddMoreMedicines,
   hasFeature as checkHasFeature,
-  changeSubscriptionPlanInSupabase
+  changeSubscriptionPlanInSupabase,
+  subscribeToSubscriptionRealtime
 } from '../lib/subscriptionService';
 import { usePharmacy } from './PharmacyContext';
 
@@ -29,6 +32,8 @@ interface SubscriptionContextType {
   trialDaysRemaining: number;
   isActive: boolean;
   isExpired: boolean;
+  isGracePeriod: boolean;
+  graceDaysRemaining: number;
   isCancelledAtPeriodEnd: boolean;
   pendingDowngradePlan: SubscriptionPlan | null;
   limits: PlanLimits;
@@ -117,9 +122,22 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     refreshSubscription();
   }, [refreshSubscription]);
 
+  // Realtime subscription event listener
+  useEffect(() => {
+    if (!organizationId) return;
+    const unsubscribe = subscribeToSubscriptionRealtime(organizationId, () => {
+      refreshSubscription();
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [organizationId, refreshSubscription]);
+
   // Computed state
   const isTrial = isTrialActive(subscription);
   const trialDaysRemaining = getTrialDaysRemaining(subscription);
+  const isGracePeriod = isSubscriptionInGracePeriod(subscription);
+  const graceDaysRemaining = getGraceDaysRemaining(subscription);
   const isActive = isSubscriptionActive(subscription);
   const isExpired = subscription
     ? (!isActive && (subscription.status === 'expired' || (subscription.status === 'trialing' && trialDaysRemaining <= 0)))
@@ -265,6 +283,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         trialDaysRemaining,
         isActive,
         isExpired,
+        isGracePeriod,
+        graceDaysRemaining,
         isCancelledAtPeriodEnd,
         pendingDowngradePlan,
         limits,

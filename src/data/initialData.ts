@@ -13,20 +13,29 @@ import {
 } from '../types';
 
 export const initialSettings: PharmacySettings = {
-  pharmacyName: "Apothecary Cure Pharmacy",
-  licenseNumber: "PHAR-8902-2024",
-  address: "742 Medical Center Blvd, Suite 100, Healthcare City",
-  phone: "+1 (555) 234-5678",
-  email: "support@apothecarycure.com",
+  pharmacyName: "St. Jude International Pharmacy & Clinic",
+  licenseNumber: "RX-INTL-9042-2025",
+  address: "742 Healthcare Boulevard, Suite 100, Metro City, NY 10001",
+  phone: "+1 (555) 742-8900",
+  email: "care@stjudepharmacy.com",
+  website: "https://www.stjudepharmacy.com",
+  vatNumber: "VAT-992384-US",
   currency: "USD",
   currencySymbol: "$",
+  country: "United States",
+  countryCode: "US",
+  language: "English (US)",
+  languageCode: "en-US",
+  timezone: "America/New_York",
   vatRate: 7.5,
+  invoicePrefix: "INV",
   lowStockThreshold: 20,
   expiryWarningDays: 90,
   enablePrescriptionAlert: true,
   enableLoyaltyProgram: true,
-  receiptHeaderNotice: "Thank you for trusting Apothecary Cure!",
-  receiptFooterNotice: "Please store medicines in a cool, dry place. All Rx sales require valid doctor prescription."
+  receiptHeaderNotice: "Thank you for choosing St. Jude International Pharmacy! Quality Healthcare You Can Trust.",
+  receiptFooterNotice: "Keep medicines out of reach of children. Valid Rx required for all controlled prescription items. Emergency Helpline: +1 (555) 742-8900.",
+  isCompanyConfigured: true
 };
 
 export const initialCategories: Category[] = [

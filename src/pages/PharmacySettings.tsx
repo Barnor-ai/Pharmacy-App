@@ -18,8 +18,16 @@ import {
   AlertCircle,
   Upload,
   Image as ImageIcon,
-  Trash2
+  Trash2,
+  Languages,
+  Sparkles,
+  RotateCcw
 } from 'lucide-react';
+import {
+  WORLD_COUNTRIES_AND_LANGUAGES,
+  CountryLanguageOption,
+  findCountryOption
+} from '../data/countriesLanguages';
 import {
   fetchOrganizationSettingsFromSupabase,
   updateOrganizationSettingsInSupabase,
@@ -38,6 +46,10 @@ export const PharmacySettings: React.FC = () => {
     website: settings.website || '',
     address: settings.address || '',
     taxNumber: settings.vatNumber || '',
+    country: settings.country || 'United States',
+    countryCode: settings.countryCode || 'US',
+    language: settings.language || 'English (US)',
+    languageCode: settings.languageCode || 'en-US',
     currency: settings.currency || 'USD',
     currencySymbol: settings.currencySymbol || '$',
     timezone: settings.timezone || 'UTC',
@@ -90,6 +102,10 @@ export const PharmacySettings: React.FC = () => {
             website: orgData.website || '',
             address: orgData.address || '',
             taxNumber: orgData.vat_number || '',
+            country: settings.country || 'United States',
+            countryCode: settings.countryCode || 'US',
+            language: settings.language || 'English (US)',
+            languageCode: settings.languageCode || 'en-US',
             currency: currCode,
             currencySymbol: currencySymbols[currCode] || '$',
             timezone: orgData.timezone || 'UTC',
@@ -176,6 +192,60 @@ export const PharmacySettings: React.FC = () => {
     addAuditLog('Removed Organization Logo', 'Pharmacy Settings', 'Cleared pharmacy branding logo');
   };
 
+  const handleLoadSampleData = () => {
+    if (!isOwnerOrAdmin) return;
+    setForm({
+      pharmacyName: 'St. Jude International Pharmacy & Clinic',
+      licenseNumber: 'RX-INTL-9042-2025',
+      phone: '+1 (555) 742-8900',
+      email: 'care@stjudepharmacy.com',
+      website: 'https://www.stjudepharmacy.com',
+      taxNumber: 'VAT-992384-US',
+      address: '742 Healthcare Boulevard, Suite 100, Metro City, NY 10001',
+      country: 'United States',
+      countryCode: 'US',
+      language: 'English (US)',
+      languageCode: 'en-US',
+      currency: 'USD',
+      currencySymbol: '$',
+      timezone: 'America/New_York',
+      vatRate: '7.5',
+      invoicePrefix: 'INV',
+      receiptHeaderNotice: 'Thank you for choosing St. Jude International Pharmacy! Quality Healthcare You Can Trust.',
+      receiptFooterNotice: 'Keep medicines out of reach of children. Valid Rx required for all controlled prescription items. Emergency Helpline: +1 (555) 742-8900.',
+      logoUrl: form.logoUrl || ''
+    });
+    setSuccessMsg('Populated form with complete sample pharmacy company data! Click "Save Settings" below to persist.');
+    setTimeout(() => setSuccessMsg(null), 4000);
+  };
+
+  const handleClearToDefaults = () => {
+    if (!isOwnerOrAdmin) return;
+    setForm({
+      pharmacyName: '',
+      licenseNumber: '',
+      phone: '',
+      email: '',
+      website: '',
+      taxNumber: '',
+      address: '',
+      country: 'United States',
+      countryCode: 'US',
+      language: 'English (US)',
+      languageCode: 'en-US',
+      currency: 'USD',
+      currencySymbol: '$',
+      timezone: 'UTC',
+      vatRate: '0',
+      invoicePrefix: 'INV',
+      receiptHeaderNotice: '',
+      receiptFooterNotice: '',
+      logoUrl: ''
+    });
+    setSuccessMsg('Reset form fields to blank defaults.');
+    setTimeout(() => setSuccessMsg(null), 3000);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isOwnerOrAdmin) {
@@ -221,6 +291,10 @@ export const PharmacySettings: React.FC = () => {
         website: form.website,
         vatNumber: form.taxNumber,
         address: form.address,
+        country: form.country,
+        countryCode: form.countryCode,
+        language: form.language,
+        languageCode: form.languageCode,
         vatRate: Number(form.vatRate),
         currency: form.currency,
         currencySymbol: form.currencySymbol,
@@ -262,11 +336,37 @@ export const PharmacySettings: React.FC = () => {
           </p>
         </div>
 
-        {organizationId && (
-          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-mono">
-            Tenant ID: {organizationId.substring(0, 8)}...
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {isOwnerOrAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={handleLoadSampleData}
+                className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/80 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                title="Fill in all fields with realistic sample pharmacy data"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Fill Sample Pharmacy Info</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearToDefaults}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-medium flex items-center gap-1 transition"
+                title="Clear inputs to blank defaults"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                <span>Reset</span>
+              </button>
+            </>
+          )}
+
+          {organizationId && (
+            <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-mono">
+              Tenant ID: {organizationId.substring(0, 8)}...
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Permissions notice for non-admins */}
@@ -498,6 +598,121 @@ export const PharmacySettings: React.FC = () => {
                 placeholder="Suite 104, Medical Center Blvd, City, Country"
                 className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-60"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Country, Language & Internationalization Card */}
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <Languages className="w-4 h-4 text-emerald-600" />
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                Country of Operation & Operational Language
+              </h3>
+            </div>
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+              Internationalization
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Select your country of operation and primary language. Selecting your country automatically adapts your default currency, currency symbol, tax conventions, and system timezone.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Country Selector */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                <span>Country of Operation</span>
+                <span className="text-[11px] text-slate-400 font-normal">World Countries ({WORLD_COUNTRIES_AND_LANGUAGES.length})</span>
+              </label>
+              <div className="relative">
+                <Globe className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                <select
+                  disabled={!isOwnerOrAdmin}
+                  value={form.countryCode || 'US'}
+                  onChange={(e) => {
+                    const selectedCode = e.target.value;
+                    const matched = WORLD_COUNTRIES_AND_LANGUAGES.find(c => c.code === selectedCode);
+                    if (matched) {
+                      setForm({
+                        ...form,
+                        country: matched.country,
+                        countryCode: matched.code,
+                        language: matched.language,
+                        languageCode: matched.langCode,
+                        currency: matched.currency,
+                        currencySymbol: matched.currencySymbol,
+                        timezone: matched.timezone || form.timezone
+                      });
+                    }
+                  }}
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-60"
+                >
+                  {WORLD_COUNTRIES_AND_LANGUAGES.map(item => (
+                    <option key={item.code} value={item.code}>
+                      {item.flag} {item.country} ({item.code}) — {item.currency} ({item.currencySymbol})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Language Selector */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                <span>Primary Operational Language</span>
+                <span className="text-[11px] text-slate-400 font-normal">Active: {form.language}</span>
+              </label>
+              <div className="relative">
+                <Languages className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                <select
+                  disabled={!isOwnerOrAdmin}
+                  value={form.languageCode || 'en-US'}
+                  onChange={(e) => {
+                    const selectedLangCode = e.target.value;
+                    const matched = WORLD_COUNTRIES_AND_LANGUAGES.find(c => c.langCode === selectedLangCode)
+                      || WORLD_COUNTRIES_AND_LANGUAGES.find(c => c.language === selectedLangCode);
+                    if (matched) {
+                      setForm({
+                        ...form,
+                        language: matched.language,
+                        languageCode: matched.langCode
+                      });
+                    } else {
+                      setForm({
+                        ...form,
+                        languageCode: selectedLangCode
+                      });
+                    }
+                  }}
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-60"
+                >
+                  {WORLD_COUNTRIES_AND_LANGUAGES.map(item => (
+                    <option key={`${item.code}-${item.langCode}`} value={item.langCode}>
+                      {item.flag} {item.language} — {item.country} ({item.nativeLang})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Localized Summary Pill */}
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-base">{findCountryOption(form.countryCode || form.country)?.flag || '🌐'}</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">
+                {form.country || 'United States'}
+              </span>
+              <span className="text-slate-400">•</span>
+              <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                {form.language || 'English (US)'}
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+              Currency: {form.currency} ({form.currencySymbol}) | Timezone: {form.timezone}
             </div>
           </div>
         </div>

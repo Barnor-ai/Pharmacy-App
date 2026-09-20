@@ -1121,10 +1121,10 @@ export async function syncFullStateToSupabase(payload: {
 export async function updateUserProfileInSupabase(
   userId: string,
   fullName: string,
-  avatarUrl?: string
+  avatarUrl?: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const updatePayload: { full_name: string; avatar_url?: string } = {
+    const updatePayload: { full_name: string; avatar_url?: string | null } = {
       full_name: fullName
     };
     if (avatarUrl !== undefined) {

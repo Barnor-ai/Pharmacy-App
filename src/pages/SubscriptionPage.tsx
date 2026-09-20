@@ -43,6 +43,8 @@ export const SubscriptionPage: React.FC = () => {
     trialDaysRemaining,
     isActive,
     isExpired,
+    isGracePeriod,
+    graceDaysRemaining,
     isCancelledAtPeriodEnd,
     pendingDowngradePlan,
     limits,
@@ -261,19 +263,19 @@ export const SubscriptionPage: React.FC = () => {
         </span>
       );
     }
+    if (isGracePeriod || subscription?.status === 'past_due' || subscription?.status === 'grace_period') {
+      return (
+        <span className="px-3 py-1 rounded-full text-xs font-black bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/30 flex items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5" />
+          <span>Grace Period ({graceDaysRemaining} day{graceDaysRemaining === 1 ? '' : 's'} remaining)</span>
+        </span>
+      );
+    }
     if (subscription?.status === 'active') {
       return (
         <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5" />
           <span>Active Subscription</span>
-        </span>
-      );
-    }
-    if (subscription?.status === 'past_due') {
-      return (
-        <span className="px-3 py-1 rounded-full text-xs font-black bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/30 flex items-center gap-1.5">
-          <AlertCircle className="w-3.5 h-3.5" />
-          <span>Payment Past Due</span>
         </span>
       );
     }
@@ -391,6 +393,19 @@ export const SubscriptionPage: React.FC = () => {
               Only the primary Pharmacy Owner can initiate Paystack checkouts or modify subscription tiers. Your account role ({currentUser.role}) has view-only permissions.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Grace Period Banner */}
+      {isGracePeriod && !isExpired && (
+        <div className="p-5 rounded-2xl bg-orange-500/10 border-2 border-orange-500 text-orange-900 dark:text-orange-200 space-y-2">
+          <div className="flex items-center gap-2 font-black text-sm text-orange-600 dark:text-orange-400">
+            <Clock className="w-5 h-5" />
+            <span>3-Day Renewal Grace Period Active ({graceDaysRemaining} day{graceDaysRemaining === 1 ? '' : 's'} remaining)</span>
+          </div>
+          <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
+            Your billing renewal is pending. All features and data entry remain temporarily enabled during your grace window. Please settle your renewal or update payment details before grace expiration to prevent disruptions.
+          </p>
         </div>
       )}
 

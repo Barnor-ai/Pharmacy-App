@@ -65,16 +65,24 @@ import {
   SupabaseSyncStatus
 } from '../lib/supabaseService';
 import { supabase } from '../lib/supabase';
+import { isRecoveryModeActive, markRecoveryMode, subscribeToRecoveryState } from '../lib/recoveryState';
 import {
   signInWithSupabase,
   signUpWithSupabase,
   signOutSupabase,
   sendPasswordResetEmail,
   updateSupabasePassword,
-  mapSupabaseUserToAppUser
+  mapSupabaseUserToAppUser,
+  parseRecoveryUrlParams,
+  getCachedRecoveryIntent,
+  setCachedRecoveryIntent
 } from '../lib/authService';
 
 interface PharmacyContextType {
+  // Navigation & Route State
+  currentRoute: string;
+  navigate: (path: string, replace?: boolean) => void;
+
   // Supabase Backend Sync Status & Tenant
   supabaseStatus: SupabaseSyncStatus;
   organizationId: string | null;
@@ -235,11 +243,63 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return saved ? JSON.parse(saved) : initialAuditLogs;
   });
 
+  // Route Navigation State
+  const [currentRoute, setCurrentRoute] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      if (isRecoveryModeActive()) {
+        return '/reset-password';
+      }
+      return window.location.pathname || '/';
+    }
+    return '/';
+  });
+
+  const navigate = useCallback((path: string, replace = false) => {
+    if (typeof window !== 'undefined') {
+      if (replace) {
+        window.history.replaceState({}, '', path);
+      } else {
+        window.history.pushState({}, '', path);
+      }
+      window.dispatchEvent(new Event('app-route-change'));
+    }
+    const clean = path.split('#')[0].split('?')[0] || '/';
+    setCurrentRoute(clean);
+  }, []);
+
+  useEffect(() => {
+    const handleRouteChange = () => {
+      if (typeof window !== 'undefined') {
+        setCurrentRoute(window.location.pathname);
+      }
+    };
+    window.addEventListener('popstate', handleRouteChange);
+    window.addEventListener('app-route-change', handleRouteChange);
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+      window.removeEventListener('app-route-change', handleRouteChange);
+    };
+  }, []);
+
   // Supabase Auth State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(() => {
+    return isRecoveryModeActive();
+  });
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+
+  // Sync with global recovery state emitter
+  useEffect(() => {
+    const unsub = subscribeToRecoveryState((active) => {
+      setIsPasswordRecovery(active);
+      if (active) {
+        setIsAuthenticated(false);
+        setCurrentRoute('/reset-password');
+      }
+    });
+    return unsub;
+  }, []);
 
   const [currentUser, setCurrentUser] = useState<User>({
     id: 'usr-guest',
@@ -348,15 +408,122 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     let mounted = true;
 
+    // 1. REGISTER THE GLOBAL onAuthStateChange LISTENER FIRST!
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const currentHref = typeof window !== 'undefined' ? window.location.href : '';
+
+      console.log('[PharmacyContext Auth DEBUG]:', {
+        event,
+        userId: session?.user?.id,
+        email: session?.user?.email,
+        currentPath,
+        currentHref,
+        recoveryActive: isRecoveryModeActive()
+      });
+
+      // CRITICAL: Supabase Password Recovery detection
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('[PharmacyContext Auth] Received PASSWORD_RECOVERY event!');
+        markRecoveryMode(true);
+        setCachedRecoveryIntent(true, false, null);
+        setIsPasswordRecovery(true);
+        setIsAuthenticated(false);
+        setAuthLoading(false);
+        navigate('/reset-password', true);
+        return;
+      }
+
+      if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
+        setIsPasswordRecovery(false);
+        markRecoveryMode(false);
+        setOrganizationId(null);
+        setCurrentUser({
+          id: 'usr-guest',
+          name: 'Pharmacy Admin',
+          email: '',
+          role: 'Super Admin',
+          status: 'Active'
+        });
+        setAuthLoading(false);
+        return;
+      }
+
+      // If user is currently in password recovery (or on /reset-password),
+      // DO NOT let SIGNED_IN or INITIAL_SESSION auto-authenticate to dashboard!
+      if (isRecoveryModeActive() || isPasswordRecovery || currentPath === '/reset-password') {
+        console.log('[PharmacyContext Auth] Recovery active; holding session for password update. Suppressing dashboard redirect.');
+        setIsPasswordRecovery(true);
+        setIsAuthenticated(false);
+        setAuthLoading(false);
+        if (currentPath !== '/reset-password') {
+          navigate('/reset-password', true);
+        }
+        return;
+      }
+
+      if (session?.user) {
+        const appUser = mapSupabaseUserToAppUser(session.user);
+        const { orgId } = await resolveUserOrganization();
+
+        let verifiedRole = appUser.role;
+        if (orgId) {
+          verifiedRole = await fetchVerifiedUserRole(session.user.id, orgId);
+        }
+
+        if (mounted) {
+          setCurrentUser({ ...appUser, role: verifiedRole });
+          setIsAuthenticated(true);
+          setIsPasswordRecovery(false);
+          if (orgId) {
+            setOrganizationId(orgId);
+            await loadTenantData(orgId);
+          }
+        }
+      } else {
+        if (mounted) {
+          setIsAuthenticated(false);
+          setIsPasswordRecovery(false);
+        }
+      }
+
+      if (mounted) setAuthLoading(false);
+    });
+
+    // 2. RUN INITIAL AUTH CHECK AFTER LISTENER IS SUBSCRIBED
     const initAuth = async () => {
       try {
+        const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+        const recoveryActive = isRecoveryModeActive() || currentPath === '/reset-password';
+
+        if (recoveryActive) {
+          console.log('[initAuth] Recovery active on start - routing to /reset-password');
+          markRecoveryMode(true);
+          setIsPasswordRecovery(true);
+          setIsAuthenticated(false);
+          if (currentPath !== '/reset-password') {
+            navigate('/reset-password', true);
+          }
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (!mounted) return;
+
+        // If recovery was detected, keep user in recovery flow and DO NOT auto-redirect to dashboard
+        if (isRecoveryModeActive() || recoveryActive || isPasswordRecovery) {
+          setIsPasswordRecovery(true);
+          setIsAuthenticated(false);
+          setAuthLoading(false);
+          return;
+        }
 
         if (session?.user) {
           const appUser = mapSupabaseUserToAppUser(session.user);
           const { orgId } = await resolveUserOrganization();
-          
+
           let verifiedRole = appUser.role;
           if (orgId) {
             verifiedRole = await fetchVerifiedUserRole(session.user.id, orgId);
@@ -365,6 +532,7 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           if (mounted) {
             setCurrentUser({ ...appUser, role: verifiedRole });
             setIsAuthenticated(true);
+            setIsPasswordRecovery(false);
             if (orgId) {
               setOrganizationId(orgId);
               await loadTenantData(orgId);
@@ -382,43 +550,11 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     initAuth();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsPasswordRecovery(true);
-      }
-
-      if (session?.user) {
-        const appUser = mapSupabaseUserToAppUser(session.user);
-        const { orgId } = await resolveUserOrganization();
-
-        let verifiedRole = appUser.role;
-        if (orgId) {
-          verifiedRole = await fetchVerifiedUserRole(session.user.id, orgId);
-        }
-
-        if (mounted) {
-          setCurrentUser({ ...appUser, role: verifiedRole });
-          setIsAuthenticated(true);
-          if (orgId) {
-            setOrganizationId(orgId);
-            await loadTenantData(orgId);
-          }
-        }
-      } else if (event === 'SIGNED_OUT' || !session) {
-        setIsAuthenticated(false);
-        setOrganizationId(null);
-      }
-
-      setAuthLoading(false);
-    });
-
     return () => {
       mounted = false;
       authListener?.subscription?.unsubscribe();
     };
-  }, [loadTenantData]);
+  }, [loadTenantData, navigate]);
 
   // Multi-Tenant Supabase Realtime Subscription Lifecycle
   useEffect(() => {
@@ -824,14 +960,12 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return res;
   };
 
-  // Supabase Password Update (Recovery flow)
+  // Supabase Password Update (Recovery & In-App flow)
   const updatePassword = async (newPassword: string): Promise<{ success: boolean; message?: string }> => {
     const res = await updateSupabasePassword(newPassword);
     if (res.success) {
-      setIsPasswordRecovery(false);
-      if (res.user) {
+      if (res.user && isAuthenticated) {
         setCurrentUser(res.user);
-        setIsAuthenticated(true);
       }
       addAuditLog('Password Updated', 'Authentication', 'User successfully changed their password.');
     }
@@ -841,6 +975,7 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Supabase Auth Sign Out
   const logout = async (): Promise<void> => {
     const userName = currentUser?.name || 'User';
+    markRecoveryMode(false);
     await signOutSupabase();
     setIsAuthenticated(false);
     setIsPasswordRecovery(false);
@@ -1360,6 +1495,8 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   return (
     <PharmacyContext.Provider
       value={{
+        currentRoute,
+        navigate,
         supabaseStatus,
         organizationId,
         triggerSupabaseSync,

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { isRecoveryModeActive, markRecoveryMode } from './recoveryState';
 
 const metaEnv = (import.meta as any).env || {};
 
@@ -27,6 +28,29 @@ const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9lbnpndHR3a2hlcGF2YmtjYWNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2NDg3MTIsImV4cCI6MjEwMjIyNDcxMn0.kcKn419KctlwijIJ0CeLcVKWYnM8dy0ec1cDsvSUByQ';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Synchronously register an early auth listener so events like PASSWORD_RECOVERY
+// dispatched during GoTrueClient's initialize() are never dropped
+supabase.auth.onAuthStateChange((event, session) => {
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+  const currentHref = typeof window !== 'undefined' ? window.location.href : '';
+  console.log('[Supabase Auth Early Core Event]:', {
+    event,
+    userId: session?.user?.id,
+    email: session?.user?.email,
+    currentPath,
+    currentHref,
+    recoveryModeActive: isRecoveryModeActive()
+  });
+
+  if (event === 'PASSWORD_RECOVERY') {
+    console.log('[Supabase Auth] PASSWORD_RECOVERY event received! Activating recovery mode.');
+    markRecoveryMode(true);
+    if (typeof window !== 'undefined' && window.location.pathname !== '/reset-password') {
+      window.history.replaceState(null, '', '/reset-password');
+    }
+  }
+});
 
 export async function checkSupabaseConnection(): Promise<{ success: boolean; message: string }> {
   try {

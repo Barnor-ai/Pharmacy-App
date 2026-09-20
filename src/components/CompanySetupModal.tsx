@@ -36,7 +36,7 @@ export const CompanySetupModal: React.FC<CompanySetupModalProps> = ({ isOpen, on
   // Form State
   const [formData, setFormData] = useState({
     // Step 2: Pharmacy Info
-    pharmacyName: settings.pharmacyName || 'Apex Health Pharmacy',
+    pharmacyName: settings.pharmacyName || 'Pharmacy Enterprise Management System',
     phone: settings.phone || '',
     email: settings.email || '',
     address: settings.address || '',
@@ -247,7 +247,7 @@ export const CompanySetupModal: React.FC<CompanySetupModalProps> = ({ isOpen, on
 
               <div className="space-y-2 max-w-md mx-auto">
                 <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Welcome to {settings.pharmacyName || 'PharmaSys'}!
+                  Welcome to Pharmacy Enterprise Management System!
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                   Let’s configure your digital pharmacy operations in 3 simple steps. Your account comes with an active 14-day free trial on the Starter plan.

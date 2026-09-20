@@ -8,15 +8,44 @@ import { ResetPasswordPage } from './auth/ResetPasswordPage';
 
 export type AuthMode = 'login' | 'signup' | 'forgot-password' | 'reset-password';
 
-export const AuthPage: React.FC = () => {
-  const { isPasswordRecovery } = usePharmacy();
-  const [mode, setMode] = useState<AuthMode>('login');
+interface AuthPageProps {
+  initialMode?: AuthMode;
+  onNavigate?: (path: string) => void;
+}
+
+export const AuthPage: React.FC<AuthPageProps> = ({
+  initialMode = 'login',
+  onNavigate
+}) => {
+  const { isPasswordRecovery, currentRoute, navigate } = usePharmacy();
+  const [mode, setMode] = useState<AuthMode>(() => {
+    if (isPasswordRecovery || currentRoute === '/reset-password' || initialMode === 'reset-password') {
+      return 'reset-password';
+    }
+    return initialMode;
+  });
 
   useEffect(() => {
-    if (isPasswordRecovery) {
+    if (isPasswordRecovery || currentRoute === '/reset-password') {
       setMode('reset-password');
+    } else if (initialMode && initialMode !== 'reset-password' && !isPasswordRecovery) {
+      setMode(initialMode);
     }
-  }, [isPasswordRecovery]);
+  }, [isPasswordRecovery, currentRoute, initialMode]);
+
+  const handleSwitchMode = (newMode: AuthMode) => {
+    setMode(newMode);
+    let targetPath = '/login';
+    if (newMode === 'signup') targetPath = '/signup';
+    if (newMode === 'forgot-password') targetPath = '/forgot-password';
+    if (newMode === 'reset-password') targetPath = '/reset-password';
+
+    if (onNavigate) {
+      onNavigate(targetPath);
+    } else if (navigate) {
+      navigate(targetPath);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans relative overflow-hidden">
@@ -81,7 +110,7 @@ export const AuthPage: React.FC = () => {
             <div className="flex rounded-xl bg-slate-800/80 p-1 mb-6 border border-slate-700/60">
               <button
                 type="button"
-                onClick={() => setMode('login')}
+                onClick={() => handleSwitchMode('login')}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
                   mode === 'login'
                     ? 'bg-emerald-600 text-white shadow-md'
@@ -92,7 +121,7 @@ export const AuthPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setMode('signup')}
+                onClick={() => handleSwitchMode('signup')}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
                   mode === 'signup'
                     ? 'bg-emerald-600 text-white shadow-md'
@@ -107,20 +136,25 @@ export const AuthPage: React.FC = () => {
           {/* Render Active Auth Subcomponent */}
           {mode === 'login' && (
             <LoginPage
-              onSwitchToSignUp={() => setMode('signup')}
-              onSwitchToForgotPassword={() => setMode('forgot-password')}
+              onSwitchToSignUp={() => handleSwitchMode('signup')}
+              onSwitchToForgotPassword={() => handleSwitchMode('forgot-password')}
             />
           )}
 
           {mode === 'signup' && (
-            <SignUpPage onSwitchToLogin={() => setMode('login')} />
+            <SignUpPage onSwitchToLogin={() => handleSwitchMode('login')} />
           )}
 
           {mode === 'forgot-password' && (
-            <ForgotPasswordPage onSwitchToLogin={() => setMode('login')} />
+            <ForgotPasswordPage onSwitchToLogin={() => handleSwitchMode('login')} />
           )}
 
-          {mode === 'reset-password' && <ResetPasswordPage />}
+          {mode === 'reset-password' && (
+            <ResetPasswordPage
+              onSwitchToLogin={() => handleSwitchMode('login')}
+              onSwitchToForgotPassword={() => handleSwitchMode('forgot-password')}
+            />
+          )}
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Subscription, SubscriptionPlan, PlanLimits } from '../types';
+import { Subscription, SubscriptionPlan, PlanLimits, QuotaWarningLevel } from '../types';
 
 export const DEFAULT_PLANS: SubscriptionPlan[] = [
   {
@@ -158,6 +158,18 @@ export async function fetchOrganizationSubscriptionFromSupabase(
   orgId: string
 ): Promise<{ subscription: Subscription | null; plan: SubscriptionPlan | null }> {
   try {
+    // Attempt evaluation RPC if supported by database
+    try {
+      const { data: evalData, error: evalError } = await supabase.rpc('evaluate_subscription_status', {
+        p_org_id: orgId
+      });
+      if (!evalError && evalData) {
+        // Status evaluated and synchronized authoritatively
+      }
+    } catch {
+      // Ignore if RPC not deployed yet
+    }
+
     const { data, error } = await supabase
       .from('subscriptions')
       .select(`
@@ -213,15 +225,71 @@ export function isTrialActive(subscription: Subscription | null): boolean {
 }
 
 /**
- * Check if subscription is generally active (active or valid trialing)
+ * Check if subscription is within 3-day grace period
+ */
+export function isSubscriptionInGracePeriod(subscription: Subscription | null): boolean {
+  if (!subscription) return false;
+  if (subscription.status === 'past_due' || subscription.status === 'grace_period') {
+    if (!subscription.currentPeriodEnd) return true;
+    const periodEnd = new Date(subscription.currentPeriodEnd).getTime();
+    const graceEnd = periodEnd + 3 * 86400000;
+    return Date.now() < graceEnd;
+  }
+  if (subscription.status === 'active' && subscription.currentPeriodEnd) {
+    const periodEnd = new Date(subscription.currentPeriodEnd).getTime();
+    const graceEnd = periodEnd + 3 * 86400000;
+    return Date.now() > periodEnd && Date.now() < graceEnd;
+  }
+  return false;
+}
+
+/**
+ * Calculate grace period days remaining
+ */
+export function getGraceDaysRemaining(subscription: Subscription | null): number {
+  if (!subscription || !subscription.currentPeriodEnd) return 0;
+  const periodEnd = new Date(subscription.currentPeriodEnd).getTime();
+  const graceEnd = periodEnd + 3 * 86400000;
+  const now = Date.now();
+  const diffMs = graceEnd - now;
+  if (diffMs <= 0) return 0;
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Check if subscription is generally active (active, valid trialing, or in grace period)
  */
 export function isSubscriptionActive(subscription: Subscription | null): boolean {
   if (!subscription) return false;
-  if (subscription.status === 'active') return true;
+  if (subscription.status === 'active') {
+    if (!subscription.currentPeriodEnd) return true;
+    const periodEnd = new Date(subscription.currentPeriodEnd).getTime();
+    const graceEnd = periodEnd + 3 * 86400000;
+    return Date.now() < graceEnd;
+  }
   if (subscription.status === 'trialing') {
     return isTrialActive(subscription);
   }
+  if (subscription.status === 'past_due' || subscription.status === 'grace_period') {
+    return isSubscriptionInGracePeriod(subscription);
+  }
+  if (subscription.status === 'cancelled') {
+    if (!subscription.currentPeriodEnd) return false;
+    return new Date(subscription.currentPeriodEnd).getTime() > Date.now();
+  }
   return false;
+}
+
+/**
+ * Check if subscription is completely expired
+ */
+export function isSubscriptionExpired(subscription: Subscription | null): boolean {
+  if (!subscription) return false;
+  if (subscription.status === 'expired') return true;
+  if (subscription.status === 'trialing') {
+    return !isTrialActive(subscription);
+  }
+  return !isSubscriptionActive(subscription);
 }
 
 /**
@@ -237,18 +305,43 @@ export function getTrialDaysRemaining(subscription: Subscription | null): number
 }
 
 /**
- * Compute plan limits and usage
+ * Calculate quota warning level based on utilization percentage
+ */
+export function calculateWarningLevel(current: number, max: number): QuotaWarningLevel {
+  if (max >= 9000) return 'normal';
+  if (current >= max) return 'limit_reached';
+  const percent = (current / max) * 100;
+  if (percent >= 90) return 'critical_90';
+  if (percent >= 80) return 'warning_80';
+  return 'normal';
+}
+
+/**
+ * Compute plan limits, usage percentages, and threshold warning levels
  */
 export function getPlanLimits(
   plan: SubscriptionPlan | null,
   currentUsers: number,
   currentMedicines: number
 ): PlanLimits {
+  const maxUsers = plan?.maxUsers || 3;
+  const maxMedicines = plan?.maxMedicines || 1000;
+
+  const userUsagePercent = maxUsers >= 9000 ? 5 : Math.round((currentUsers / maxUsers) * 100);
+  const medicineUsagePercent = maxMedicines >= 100000 ? 5 : Math.round((currentMedicines / maxMedicines) * 100);
+
+  const userWarningLevel = calculateWarningLevel(currentUsers, maxUsers);
+  const medicineWarningLevel = calculateWarningLevel(currentMedicines, maxMedicines);
+
   return {
-    maxUsers: plan?.maxUsers || 3,
-    maxMedicines: plan?.maxMedicines || 1000,
+    maxUsers,
+    maxMedicines,
     currentUsers,
-    currentMedicines
+    currentMedicines,
+    userUsagePercent,
+    medicineUsagePercent,
+    userWarningLevel,
+    medicineWarningLevel
   };
 }
 
@@ -272,6 +365,39 @@ export function canAddMoreMedicines(limits: PlanLimits): boolean {
 export function hasFeature(plan: SubscriptionPlan | null, featureKey: string): boolean {
   if (!plan || !plan.features) return false;
   return plan.features.includes(featureKey);
+}
+
+/**
+ * Subscribe to realtime subscription updates for an organization
+ */
+export function subscribeToSubscriptionRealtime(
+  orgId: string,
+  onUpdate: () => void
+): () => void {
+  try {
+    const channel = supabase
+      .channel(`org-subscription-${orgId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'subscriptions',
+          filter: `organization_id=eq.${orgId}`
+        },
+        () => {
+          onUpdate();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  } catch (err) {
+    console.warn('Realtime subscription channel error:', err);
+    return () => {};
+  }
 }
 
 /**

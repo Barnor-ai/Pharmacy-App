@@ -168,45 +168,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => 
         </nav>
       </div>
 
-      {/* Bottom Footer Subscription & User Pill */}
-      <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-2">
-        {!collapsed && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('settings')}
-            className={`w-full p-2.5 rounded-2xl text-left text-xs transition border flex items-center justify-between group ${
-              isExpired
-                ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300'
-                : isTrial
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-300'
-                : 'bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200'
-            }`}
-          >
-            <div className="flex items-center gap-2 overflow-hidden">
-              <div className="w-6 h-6 rounded-lg bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                <CreditCard className="w-3.5 h-3.5" />
-              </div>
-              <div className="truncate">
-                <p className="font-bold truncate text-[11px] flex items-center gap-1">
-                  <span>{plan?.name || 'Starter'} Plan</span>
-                </p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                  {isTrial ? `${trialDaysRemaining}d trial left` : isExpired ? 'Expired' : 'Active Subscription'}
-                </p>
-              </div>
-            </div>
-            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 group-hover:underline shrink-0">
-              Manage
-            </span>
-          </button>
-        )}
-
+      {/* Bottom Footer User Info */}
+      <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
         {!collapsed ? (
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold flex items-center justify-center text-sm border border-emerald-300 dark:border-emerald-800 shrink-0">
-                {currentUser.name.charAt(0)}
-              </div>
+              {currentUser.avatar ? (
+                <img
+                  src={currentUser.avatar}
+                  alt={currentUser.name}
+                  className="w-9 h-9 rounded-full object-cover border border-emerald-300 dark:border-emerald-800 shrink-0"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold flex items-center justify-center text-sm border border-emerald-300 dark:border-emerald-800 shrink-0">
+                  {currentUser.name.charAt(0)}
+                </div>
+              )}
               <div className="truncate">
                 <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">{currentUser.name}</p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{currentUser.email}</p>
@@ -223,10 +200,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => 
         ) : (
           <button
             onClick={logout}
-            className="w-9 h-9 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold flex items-center justify-center text-sm border border-emerald-300 dark:border-emerald-800 hover:bg-rose-100 dark:hover:bg-rose-950 hover:text-rose-600 transition"
+            className="w-9 h-9 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold flex items-center justify-center text-sm border border-emerald-300 dark:border-emerald-800 hover:bg-rose-100 dark:hover:bg-rose-950 hover:text-rose-600 transition overflow-hidden"
             title={`Sign Out (${currentUser.name})`}
           >
-            {currentUser.name.charAt(0)}
+            {currentUser.avatar ? (
+              <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full object-cover" />
+            ) : (
+              currentUser.name.charAt(0)
+            )}
           </button>
         )}
       </div>
