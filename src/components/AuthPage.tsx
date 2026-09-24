@@ -47,6 +47,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
   };
 
+  // Dedicated Redesigned Full-Screen Login Page
+  if (mode === 'login') {
+    return (
+      <LoginPage
+        onSwitchToSignUp={() => handleSwitchMode('signup')}
+        onSwitchToForgotPassword={() => handleSwitchMode('forgot-password')}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans relative overflow-hidden">
       {/* Background ambient gradient glow */}

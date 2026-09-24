@@ -63,6 +63,29 @@ export async function signInWithSupabase(email: string, password: string): Promi
 }
 
 /**
+ * Sign in with Google OAuth provider via Supabase Auth
+ */
+export async function signInWithGoogleOAuth(): Promise<{ success: boolean; message?: string }> {
+  try {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: origin ? `${origin}/` : undefined
+      }
+    });
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Failed to initialize Google authentication.' };
+  }
+}
+
+/**
  * Sign up a new user with email, password, and metadata via Supabase Auth
  */
 export async function signUpWithSupabase(
