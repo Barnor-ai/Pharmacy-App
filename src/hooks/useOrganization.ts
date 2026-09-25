@@ -17,15 +17,17 @@ export function useOrganization() {
 
         setOrganizationId(orgId);
 
-        const { data: orgData } = await supabase
+        const { data: orgData, error: orgError } = await supabase
           .from('organizations')
           .select('*')
           .eq('id', orgId)
-          .single();
+          .maybeSingle();
 
-        setOrganization(orgData);
-      } catch (err) {
-        console.error('Failed to load organization:', err);
+        if (!orgError && orgData) {
+          setOrganization(orgData);
+        }
+      } catch {
+        // Table not provisioned yet, suppress error
       } finally {
         setLoading(false);
       }

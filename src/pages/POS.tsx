@@ -306,13 +306,13 @@ export const POS: React.FC = () => {
 
         {/* Product Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
-          {filteredMedicines.map(med => {
+          {filteredMedicines.map((med, idx) => {
             const inCart = cart.find(i => i.medicineId === med.id);
             const isOutOfStock = med.stockQuantity <= 0;
 
             return (
               <div
-                key={med.id}
+                key={`pos-med-${med.id}-${idx}`}
                 onClick={() => !isOutOfStock && addToCart(med)}
                 className={`p-4 rounded-2xl bg-white dark:bg-slate-900 border transition cursor-pointer relative flex flex-col justify-between ${
                   isOutOfStock
@@ -448,9 +448,9 @@ export const POS: React.FC = () => {
                   Your cart is empty. Scan barcode or click medicines to add.
                 </div>
               ) : (
-                cart.map(item => (
+                cart.map((item, idx) => (
                   <div
-                    key={item.medicineId}
+                    key={`cart-item-${item.medicineId}-${idx}`}
                     className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 flex items-center justify-between gap-2"
                   >
                     <div className="flex-1 truncate">

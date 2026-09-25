@@ -12,6 +12,7 @@ import { Purchases } from './pages/Purchases';
 import { Suppliers } from './pages/Suppliers';
 import { Customers } from './pages/Customers';
 import { Reports } from './pages/Reports';
+import { FinancialsPage } from './pages/FinancialsPage';
 import { AIAssistant } from './pages/AIAssistant';
 import { UsersPage } from './pages/UsersPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
@@ -39,6 +40,8 @@ const MainContent: React.FC = () => {
       return <Customers />;
     case 'reports':
       return <Reports />;
+    case 'financials':
+      return <FinancialsPage />;
     case 'ai-assistant':
       return <AIAssistant />;
     case 'users':

@@ -49,8 +49,8 @@ export const AuditLogsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {filteredLogs.map(log => (
-                <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+              {filteredLogs.map((log, index) => (
+                <tr key={`${log.id || 'log'}-${index}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                   <td className="p-3 font-mono text-[11px] text-slate-500">{formatDateTime(log.timestamp)}</td>
                   <td className="p-3 font-bold text-slate-900 dark:text-white">{log.userName}</td>
                   <td className="p-3 font-semibold text-emerald-600 dark:text-emerald-400">{log.action}</td>

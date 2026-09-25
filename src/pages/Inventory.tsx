@@ -391,8 +391,8 @@ export const Inventory: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredMedicines.map(m => (
-                  <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                filteredMedicines.map((m, idx) => (
+                  <tr key={`inv-med-${m.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="p-3 font-mono text-[11px] text-slate-500">
                       {m.barcode}
                       <span className="block text-[10px] text-slate-400">Rack: {m.locationRack}</span>
@@ -513,8 +513,8 @@ export const Inventory: React.FC = () => {
                 <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
                   {medicines
                     .filter(m => m.stockQuantity <= m.minReorderLevel)
-                    .map(m => (
-                      <div key={m.id} className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300 py-0.5 border-b border-slate-200 dark:border-slate-700/60">
+                    .map((m, idx) => (
+                      <div key={`reorder-med-${m.id}-${idx}`} className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300 py-0.5 border-b border-slate-200 dark:border-slate-700/60">
                         <span>{m.name}</span>
                         <span className="font-bold text-rose-600 dark:text-rose-400 font-mono">
                           {m.stockQuantity} / min {m.minReorderLevel}

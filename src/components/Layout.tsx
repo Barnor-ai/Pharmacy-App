@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { usePharmacy } from '../context/PharmacyContext';
 import { CompanySetupModal } from './CompanySetupModal';
+import { OfflineBanner } from './OfflineBanner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -29,7 +30,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           sidebarCollapsed ? 'ml-20' : 'ml-64'
         }`}
       >
-        <div className="max-w-7xl mx-auto space-y-6">{children}</div>
+        <div className="max-w-7xl mx-auto space-y-4">
+          <OfflineBanner />
+          {children}
+        </div>
       </main>
 
       <CompanySetupModal

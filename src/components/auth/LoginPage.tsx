@@ -119,7 +119,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             </div>
             <div className="overflow-hidden">
               <span className="font-bold text-slate-900 text-base leading-snug tracking-tight block truncate">
-                {settings?.pharmacyName || 'Pharmacy Management System'}
+                Pharmacy
               </span>
               <span className="text-xs font-semibold text-teal-600 tracking-wide uppercase block">
                 Healthcare Enterprise
@@ -288,7 +288,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             <ShieldCheck className="w-4 h-4 text-teal-600" />
             <span>256-bit Encrypted Healthcare Session</span>
           </div>
-          <span>© {new Date().getFullYear()} {settings?.pharmacyName || 'Pharmacy Management System'}</span>
+          <span>© 2026 Pharmacy Mgt System</span>
         </div>
       </div>
 
@@ -317,29 +317,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 backdrop-blur-md text-slate-800 text-xs font-semibold shadow-lg">
             <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
             <span>Enterprise Pharmacy Cloud</span>
-          </div>
-        </div>
-
-        {/* Bottom Healthcare Highlight Card */}
-        <div className="relative z-10 max-w-lg space-y-4">
-          <div className="bg-slate-900/85 backdrop-blur-md border border-white/15 rounded-2xl p-6 text-white shadow-2xl space-y-3">
-            <div className="flex items-center gap-1 text-amber-400">
-              {[...Array(5)].map((_, i) => (
-                <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-              ))}
-              <span className="text-xs font-bold text-white ml-2">Certified Clinical Standard</span>
-            </div>
-            
-            <p className="text-sm font-medium text-slate-100 leading-relaxed">
-              &ldquo;Intelligent stock tracking, automated patient dosage reminders, and instant POS dispensing engineered for modern healthcare facilities.&rdquo;
-            </p>
-
-            <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs text-slate-300">
-              <span className="font-semibold text-white">Trusted by 2,500+ Licensed Clinics</span>
-              <span className="text-teal-400 font-medium">HIPAA & GDPR Ready</span>
-            </div>
           </div>
         </div>
       </div>

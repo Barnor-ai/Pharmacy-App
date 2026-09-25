@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { usePharmacy } from '../context/PharmacyContext';
 import { useSubscription } from '../context/SubscriptionContext';
-import { NavigationTab, UserRole } from '../types';
+import { NavigationTab, UserRole, FinancialsSubTab } from '../types';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -12,6 +12,8 @@ import {
   Truck,
   Users,
   BarChart3,
+  DollarSign,
+  ChevronDown,
   Bot,
   UserCheck,
   History,
@@ -38,31 +40,44 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => 
   const {
     activeTab,
     setActiveTab,
+    financialsSubTab,
+    setFinancialsSubTab,
     currentUser,
     settings,
     getLowStockCount,
     getExpiringSoonCount,
     getExpiredCount,
+    isDemoMode,
     logout
   } = usePharmacy();
   const { plan, isTrial, trialDaysRemaining, isExpired } = useSubscription();
+  const [financialsDropdownOpen, setFinancialsDropdownOpen] = useState(true);
+
+  const financialSections: { id: FinancialsSubTab; label: string }[] = [
+    { id: 'income-sales', label: '1. Income / Sales' },
+    { id: 'expenses', label: '2. Expenses' },
+    { id: 'payables', label: '3. Payables' },
+    { id: 'profit-loss', label: '4. Profit & Loss' },
+    { id: 'financial-reports', label: '5. Financial Reports' },
+  ];
 
   const totalAlerts = getLowStockCount() + getExpiringSoonCount() + getExpiredCount();
 
   const navItems: { id: NavigationTab; label: string; icon: React.ElementType; badge?: number; roles?: UserRole[] }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'pos', label: 'Point of Sale (POS)', icon: ShoppingCart },
-    { id: 'inventory', label: 'Medicine Catalog', icon: Pill, badge: totalAlerts },
+    { id: 'pos', label: 'Point of Sale (POS)', icon: ShoppingCart, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator', 'Pharmacist', 'Cashier', 'Store Manager'] },
+    { id: 'inventory', label: 'Medicine Catalog', icon: Pill, badge: totalAlerts, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator', 'Pharmacist', 'Store Manager'] },
     { id: 'sales', label: 'Sales History', icon: ReceiptText },
-    { id: 'prescriptions', label: 'Prescriptions', icon: FileText },
-    { id: 'purchases', label: 'Purchases & Stock-In', icon: PackageCheck },
-    { id: 'suppliers', label: 'Suppliers', icon: Truck },
-    { id: 'customers', label: 'Customers & Patients', icon: Users },
-    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['Super Admin', 'Store Manager'] },
+    { id: 'prescriptions', label: 'Prescriptions', icon: FileText, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator', 'Pharmacist'] },
+    { id: 'purchases', label: 'Purchases & Stock-In', icon: PackageCheck, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator', 'Store Manager', 'Accountant'] },
+    { id: 'suppliers', label: 'Suppliers', icon: Truck, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator', 'Store Manager', 'Accountant', 'Pharmacist'] },
+    { id: 'customers', label: 'Customers & Patients', icon: Users, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator', 'Pharmacist', 'Cashier', 'Store Manager'] },
+    { id: 'financials', label: 'FINANCIALS', icon: DollarSign, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator', 'Store Manager', 'Accountant'] },
+    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator', 'Store Manager', 'Accountant'] },
     { id: 'ai-assistant', label: 'PharmaAI Assistant', icon: Bot },
-    { id: 'users', label: 'Staff Management', icon: UserCheck, roles: ['Super Admin'] },
-    { id: 'audit-logs', label: 'Audit Trail', icon: History, roles: ['Super Admin'] },
-    { id: 'settings', label: 'Settings', icon: Settings, roles: ['Super Admin', 'Store Manager'] },
+    { id: 'users', label: 'Staff Management', icon: UserCheck, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator'] },
+    { id: 'audit-logs', label: 'Audit Trail', icon: History, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator'] },
+    { id: 'settings', label: 'Settings', icon: Settings, roles: ['Super Admin', 'Pharmacy Owner', 'Administrator', 'Store Manager'] },
   ];
 
   const allowedItems = navItems.filter(item => {
@@ -92,17 +107,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => 
                 <h1 className="font-bold text-slate-900 dark:text-white text-base leading-tight truncate">
                   {settings.pharmacyName}
                 </h1>
-                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 block truncate">
-                  Pharmacy Management System
-                </span>
+                {isDemoMode ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    DEMO DATA • GH₵ (Ghana)
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 block truncate">
+                    Pharmacy Management System
+                  </span>
+                )}
               </div>
             </div>
           ) : (
-            <div className="w-10 h-10 mx-auto rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-600/20 overflow-hidden">
+            <div className="w-10 h-10 mx-auto rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-600/20 overflow-hidden relative" title={isDemoMode ? "DEMO MODE • HealthPlus Pharmacy" : settings.pharmacyName}>
               {settings.logoUrl ? (
                 <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" />
               ) : (
                 <Cross className="w-6 h-6" />
+              )}
+              {isDemoMode && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-white dark:border-slate-900"></span>
               )}
             </div>
           )}
@@ -136,6 +161,64 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => 
           {allowedItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
+
+            if (item.id === 'financials') {
+              return (
+                <div key={item.id} className="space-y-0.5">
+                  <button
+                    onClick={() => {
+                      setActiveTab('financials');
+                      if (!collapsed) {
+                        setFinancialsDropdownOpen(!financialsDropdownOpen);
+                      }
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-sm transition-all relative ${
+                      isActive
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 font-semibold'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-slate-100'
+                    }`}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <div className="flex items-center gap-3 truncate">
+                      <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
+                      {!collapsed && <span className="truncate font-bold tracking-wide">{item.label}</span>}
+                    </div>
+                    {!collapsed && (
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          financialsDropdownOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    )}
+                  </button>
+
+                  {!collapsed && financialsDropdownOpen && (
+                    <div className="pl-6 pr-1 py-1 space-y-1">
+                      {financialSections.map(sec => {
+                        const isSubActive = isActive && financialsSubTab === sec.id;
+                        return (
+                          <button
+                            key={sec.id}
+                            onClick={() => {
+                              setActiveTab('financials');
+                              setFinancialsSubTab(sec.id);
+                            }}
+                            className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-2 ${
+                              isSubActive
+                                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 font-bold border-l-2 border-emerald-500'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                            }`}
+                          >
+                            <span className="truncate">{sec.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <button
                 key={item.id}

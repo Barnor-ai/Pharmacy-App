@@ -127,8 +127,8 @@ export const SalesHistory: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredSales.map(s => (
-                  <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                filteredSales.map((s, idx) => (
+                  <tr key={`sale-row-${s.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="p-3 font-mono font-bold text-slate-900 dark:text-white">{s.invoiceNo}</td>
                     <td className="p-3 font-medium">{s.customerName}</td>
                     <td className="p-3">{s.items.length} item(s)</td>

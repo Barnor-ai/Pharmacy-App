@@ -138,8 +138,8 @@ export const Purchases: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredPurchases.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                filteredPurchases.map((p, idx) => (
+                  <tr key={`po-row-${p.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="p-3 font-mono font-bold text-slate-900 dark:text-white">{p.purchaseOrderNo}</td>
                     <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.supplierName}</td>
                     <td className="p-3 font-bold text-emerald-600 dark:text-emerald-400">

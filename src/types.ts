@@ -1,4 +1,11 @@
-export type UserRole = 'Super Admin' | 'Pharmacist' | 'Cashier' | 'Store Manager';
+export type UserRole =
+  | 'Super Admin'
+  | 'Pharmacy Owner'
+  | 'Administrator'
+  | 'Pharmacist'
+  | 'Cashier'
+  | 'Store Manager'
+  | 'Accountant';
 
 export interface User {
   id: string;
@@ -55,8 +62,10 @@ export interface Supplier {
   email: string;
   phone: string;
   address: string;
+  category?: string;
   taxId?: string;
   paymentTerms?: string;
+  notes?: string;
   totalPurchased: number;
   balanceOwed: number;
   status: 'Active' | 'Inactive';
@@ -128,7 +137,9 @@ export interface Purchase {
   supplierName: string;
   items: PurchaseItem[];
   totalAmount: number;
-  paymentStatus: 'Paid' | 'Partial' | 'Pending';
+  amountPaid?: number;
+  dueDate?: string;
+  paymentStatus: 'Paid' | 'Partial' | 'Pending' | 'Overdue';
   deliveryStatus: 'Received' | 'Pending' | 'Partial';
   orderDate: string;
   expectedDeliveryDate?: string;
@@ -151,7 +162,7 @@ export interface Prescription {
   customerId: string;
   customerName: string;
   doctorName: string;
-  doctorRegNo: string;
+  doctorRegNo?: string;
   hospitalClinic: string;
   diagnosis?: string;
   items: PrescriptionRxItem[];
@@ -165,12 +176,16 @@ export interface Prescription {
 
 export interface Expense {
   id: string;
-  category: 'Utilities' | 'Salaries' | 'Rent' | 'Equipment' | 'Maintenance' | 'Supplies' | 'Other';
+  category: string;
   description: string;
   amount: number;
   date: string;
   paymentMethod: string;
   recordedBy: string;
+  payee?: string;
+  referenceNumber?: string;
+  notes?: string;
+  attachmentUrl?: string;
 }
 
 export interface AuditLog {
@@ -220,11 +235,34 @@ export type NavigationTab =
   | 'purchases'
   | 'suppliers'
   | 'customers'
+  | 'financials'
   | 'reports'
   | 'ai-assistant'
   | 'users'
   | 'audit-logs'
   | 'settings';
+
+export type FinancialsSubTab = 
+  | 'income-sales'
+  | 'expenses'
+  | 'payables'
+  | 'profit-loss'
+  | 'financial-reports';
+
+export type OfflineSyncStatus = 'ONLINE' | 'OFFLINE' | 'SYNCING' | 'SYNC COMPLETE' | 'SYNC ERROR';
+
+export interface OfflineTransaction {
+  id: string;
+  type: 'sale' | 'customer' | 'expense' | 'supplier' | 'medicine' | 'prescription' | 'purchase';
+  action: 'insert' | 'update' | 'delete';
+  payload: any;
+  timestamp: string;
+  userId: string;
+  userName: string;
+  status: 'pending' | 'syncing' | 'synced' | 'failed';
+  retryCount: number;
+  errorMessage?: string;
+}
 
 export type SubscriptionStatus =
   | 'trialing'

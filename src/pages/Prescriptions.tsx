@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { usePharmacy } from '../context/PharmacyContext';
 import { Prescription, PrescriptionRxItem } from '../types';
 import { formatDate } from '../lib/formatters';
+import { ensureUUID } from '../lib/supabaseService';
 import {
   Search,
   Plus,
@@ -27,9 +28,10 @@ export const Prescriptions: React.FC = () => {
   const [viewingRx, setViewingRx] = useState<Prescription | null>(null);
 
   // New Rx form state
-  const [selectedCustomerId, setSelectedCustomerId] = useState(customers[0]?.id || '');
+  const [patientName, setPatientName] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [prescriptionDate, setPrescriptionDate] = useState(new Date().toISOString().split('T')[0]);
   const [doctorName, setDoctorName] = useState('');
-  const [doctorRegNo, setDoctorRegNo] = useState('');
   const [hospitalClinic, setHospitalClinic] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [notes, setNotes] = useState('');
@@ -107,8 +109,14 @@ export const Prescriptions: React.FC = () => {
 
   const handleSavePrescription = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cust = customers.find(c => c.id === selectedCustomerId);
-    if (!cust) return;
+    if (!patientName.trim()) {
+      setUploadError('Patient Name is required.');
+      return;
+    }
+    if (!doctorName.trim()) {
+      setUploadError('Doctor Name is required.');
+      return;
+    }
 
     setIsUploading(true);
     setUploadError(null);
@@ -128,26 +136,32 @@ export const Prescriptions: React.FC = () => {
       }
     }
 
+    const matchedCust = customers.find(c => c.id === selectedCustomerId || c.name.toLowerCase() === patientName.trim().toLowerCase());
+    const finalCustId = matchedCust ? matchedCust.id : ensureUUID();
+    const finalCustName = patientName.trim();
+
     addPrescription({
-      customerId: cust.id,
-      customerName: cust.name,
-      doctorName,
-      doctorRegNo,
-      hospitalClinic,
-      diagnosis,
+      customerId: finalCustId,
+      customerName: finalCustName,
+      doctorName: doctorName.trim(),
+      doctorRegNo: '',
+      hospitalClinic: hospitalClinic.trim(),
+      diagnosis: diagnosis.trim(),
       items: rxItems,
-      notes,
+      notes: notes.trim(),
       scannedFileUrl: savedFilePath
     });
 
     setIsUploading(false);
     setShowAddModal(false);
+    setPatientName('');
+    setSelectedCustomerId('');
     setDoctorName('');
-    setDoctorRegNo('');
     setHospitalClinic('');
     setDiagnosis('');
     setNotes('');
     setPrescriptionFile(null);
+    setPrescriptionDate(new Date().toISOString().split('T')[0]);
   };
 
   const formatExpiryTime = (seconds: number) => {
@@ -202,7 +216,7 @@ export const Prescriptions: React.FC = () => {
               <tr>
                 <th className="p-3 rounded-l-xl">Rx Number</th>
                 <th className="p-3">Patient Name</th>
-                <th className="p-3">Doctor / Reg No</th>
+                <th className="p-3">Doctor</th>
                 <th className="p-3">Hospital / Clinic</th>
                 <th className="p-3">Prescribed Meds</th>
                 <th className="p-3">Document</th>
@@ -212,13 +226,15 @@ export const Prescriptions: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {filteredRx.map(p => (
-                <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+              {filteredRx.map((p, idx) => (
+                <tr key={`rx-row-${p.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                   <td className="p-3 font-mono font-bold text-slate-900 dark:text-white">{p.prescriptionNo}</td>
                   <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.customerName}</td>
                   <td className="p-3 font-medium">
                     {p.doctorName}
-                    <span className="block text-[10px] text-slate-400">{p.doctorRegNo}</span>
+                    {p.doctorRegNo ? (
+                      <span className="block text-[10px] text-slate-400">{p.doctorRegNo}</span>
+                    ) : null}
                   </td>
                   <td className="p-3 text-slate-500">{p.hospitalClinic}</td>
                   <td className="p-3">
@@ -329,17 +345,25 @@ export const Prescriptions: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Select Patient *</label>
-                  <select
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Patient Name *</label>
+                  <input
+                    type="text"
                     required
-                    value={selectedCustomerId}
-                    onChange={e => setSelectedCustomerId(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700"
-                  >
+                    list="patients-list"
+                    placeholder="Enter patient full name..."
+                    value={patientName}
+                    onChange={e => {
+                      setPatientName(e.target.value);
+                      const matched = customers.find(c => c.name.toLowerCase() === e.target.value.toLowerCase());
+                      if (matched) setSelectedCustomerId(matched.id);
+                    }}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <datalist id="patients-list">
                     {customers.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
+                      <option key={c.id} value={c.name}>{c.phone ? `(${c.phone})` : ''}</option>
                     ))}
-                  </select>
+                  </datalist>
                 </div>
 
                 <div>
@@ -350,18 +374,18 @@ export const Prescriptions: React.FC = () => {
                     placeholder="Dr. Alexander Wright, MD"
                     value={doctorName}
                     onChange={e => setDoctorName(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700"
+                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Doctor Reg / License #</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Prescription Date *</label>
                   <input
-                    type="text"
-                    placeholder="MDC-2024-8841"
-                    value={doctorRegNo}
-                    onChange={e => setDoctorRegNo(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700"
+                    type="date"
+                    required
+                    value={prescriptionDate}
+                    onChange={e => setPrescriptionDate(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
@@ -372,7 +396,7 @@ export const Prescriptions: React.FC = () => {
                     placeholder="St. Mary's General Hospital"
                     value={hospitalClinic}
                     onChange={e => setHospitalClinic(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700"
+                    className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
               </div>
@@ -550,7 +574,7 @@ export const Prescriptions: React.FC = () => {
 
             <div className="space-y-2 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border">
               <p>Patient: <span className="font-bold text-slate-900 dark:text-white">{viewingRx.customerName}</span></p>
-              <p>Prescribing Doctor: <span className="font-bold text-slate-900 dark:text-white">{viewingRx.doctorName} ({viewingRx.doctorRegNo})</span></p>
+              <p>Prescribing Doctor: <span className="font-bold text-slate-900 dark:text-white">{viewingRx.doctorName}{viewingRx.doctorRegNo ? ` (${viewingRx.doctorRegNo})` : ''}</span></p>
               <p>Hospital/Clinic: <span className="font-semibold text-slate-700 dark:text-slate-300">{viewingRx.hospitalClinic}</span></p>
               {viewingRx.diagnosis && <p>Diagnosis: <span className="italic">{viewingRx.diagnosis}</span></p>}
             </div>

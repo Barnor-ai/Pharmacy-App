@@ -12,6 +12,7 @@ import {
   AuditLog,
   PharmacySettings,
   NavigationTab,
+  FinancialsSubTab,
   UserRole
 } from '../types';
 import {
@@ -27,6 +28,25 @@ import {
   initialUsers,
   initialAuditLogs
 } from '../data/initialData';
+import {
+  demoPharmacySettings,
+  demoUsers,
+  demoSuppliers,
+  demoCategories,
+  demoMedicines,
+  demoCustomers,
+  demoSales,
+  demoPurchases,
+  demoExpenses,
+  demoPrescriptions,
+  demoAuditLogs,
+  DEMO_MODE_ENABLED,
+  DEMO_STORAGE_PREFIX,
+  DEMO_MODE_STORAGE_KEY,
+  isDemoModeActive,
+  setDemoModeActive,
+  resetDemoStorage
+} from '../demo';
 import {
   verifySupabaseConnection,
   resolveUserOrganization,
@@ -64,6 +84,7 @@ import {
   fetchVerifiedUserRole,
   SupabaseSyncStatus
 } from '../lib/supabaseService';
+import { enqueueOfflineTransaction } from '../lib/offlineSyncService';
 import { supabase } from '../lib/supabase';
 import { isRecoveryModeActive, markRecoveryMode, subscribeToRecoveryState } from '../lib/recoveryState';
 import {
@@ -94,6 +115,8 @@ interface PharmacyContextType {
   toggleTheme: () => void;
   activeTab: NavigationTab;
   setActiveTab: (tab: NavigationTab) => void;
+  financialsSubTab: FinancialsSubTab;
+  setFinancialsSubTab: (tab: FinancialsSubTab) => void;
   
   // Supabase Authentication State & Actions
   isAuthenticated: boolean;
@@ -153,7 +176,9 @@ interface PharmacyContextType {
 
   expenses: Expense[];
   addExpense: (expense: Omit<Expense, 'id'>) => void;
+  updateExpense: (id: string, updated: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
+  recordPurchasePayment: (purchaseId: string, amount: number, paymentMethod: string, notes?: string) => void;
 
   users: User[];
   addUser: (user: Omit<User, 'id'>) => void;
@@ -172,6 +197,13 @@ interface PharmacyContextType {
   getLowStockCount: () => number;
   getExpiringSoonCount: () => number;
   getExpiredCount: () => number;
+
+  // Demo Mode Environment
+  isDemoMode: boolean;
+  toggleDemoMode: (active?: boolean) => void;
+  resetDemoData: () => void;
+  switchDemoUser: (userOrId: string | User) => void;
+  demoUsersList: User[];
 }
 
 const PharmacyContext = createContext<PharmacyContextType | undefined>(undefined);
@@ -179,6 +211,11 @@ const PharmacyContext = createContext<PharmacyContextType | undefined>(undefined
 const STORAGE_PREFIX = 'pharmasys_v1_';
 
 export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Demo Mode state
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(() => isDemoModeActive());
+
+  const activePrefix = isDemoMode ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+
   // Theme state
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem(STORAGE_PREFIX + 'theme') as 'light' | 'dark') || 'light';
@@ -186,61 +223,107 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Navigation state
   const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
+  const [financialsSubTab, setFinancialsSubTab] = useState<FinancialsSubTab>('income-sales');
 
-  // Load persisted states or fall back to defaults
+  // Load persisted states or fall back to defaults (Demo vs Production)
   const [settings, setSettings] = useState<PharmacySettings>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'settings');
-    return saved ? JSON.parse(saved) : initialSettings;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const saved = localStorage.getItem(prefix + 'settings');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    }
+    return isDemo ? demoPharmacySettings : initialSettings;
   });
 
   const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'categories');
-    return saved ? JSON.parse(saved) : initialCategories;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const fallback = isDemo ? demoCategories : initialCategories;
+    const saved = localStorage.getItem(prefix + 'categories');
+    if (!saved) return fallback;
+    try {
+      const parsed: Category[] = JSON.parse(saved);
+      const existingNames = new Set(parsed.map(c => c.name.toLowerCase()));
+      const missingInitial = fallback.filter(ic => !existingNames.has(ic.name.toLowerCase()));
+      return [...parsed, ...missingInitial];
+    } catch {
+      return fallback;
+    }
   });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'suppliers');
-    return saved ? JSON.parse(saved) : initialSuppliers;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const saved = localStorage.getItem(prefix + 'suppliers');
+    return saved ? JSON.parse(saved) : (isDemo ? demoSuppliers : initialSuppliers);
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'customers');
-    return saved ? JSON.parse(saved) : initialCustomers;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const saved = localStorage.getItem(prefix + 'customers');
+    return saved ? JSON.parse(saved) : (isDemo ? demoCustomers : initialCustomers);
   });
 
   const [medicines, setMedicines] = useState<Medicine[]>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'medicines');
-    return saved ? JSON.parse(saved) : initialMedicines;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const saved = localStorage.getItem(prefix + 'medicines');
+    return saved ? JSON.parse(saved) : (isDemo ? demoMedicines : initialMedicines);
   });
 
   const [sales, setSales] = useState<Sale[]>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'sales');
-    return saved ? JSON.parse(saved) : initialSales;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const saved = localStorage.getItem(prefix + 'sales');
+    return saved ? JSON.parse(saved) : (isDemo ? demoSales : initialSales);
   });
 
   const [purchases, setPurchases] = useState<Purchase[]>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'purchases');
-    return saved ? JSON.parse(saved) : initialPurchases;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const saved = localStorage.getItem(prefix + 'purchases');
+    return saved ? JSON.parse(saved) : (isDemo ? demoPurchases : initialPurchases);
   });
 
   const [prescriptions, setPrescriptions] = useState<Prescription[]>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'prescriptions');
-    return saved ? JSON.parse(saved) : initialPrescriptions;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const saved = localStorage.getItem(prefix + 'prescriptions');
+    return saved ? JSON.parse(saved) : (isDemo ? demoPrescriptions : initialPrescriptions);
   });
 
   const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'expenses');
-    return saved ? JSON.parse(saved) : initialExpenses;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const saved = localStorage.getItem(prefix + 'expenses');
+    return saved ? JSON.parse(saved) : (isDemo ? demoExpenses : initialExpenses);
   });
 
   const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'users');
-    return saved ? JSON.parse(saved) : initialUsers;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const saved = localStorage.getItem(prefix + 'users');
+    return saved ? JSON.parse(saved) : (isDemo ? demoUsers : initialUsers);
   });
 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
-    const saved = localStorage.getItem(STORAGE_PREFIX + 'auditLogs');
-    return saved ? JSON.parse(saved) : initialAuditLogs;
+    const isDemo = isDemoModeActive();
+    const prefix = isDemo ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+    const fallback = isDemo ? demoAuditLogs : initialAuditLogs;
+    const saved = localStorage.getItem(prefix + 'auditLogs');
+    const sourceLogs: AuditLog[] = saved ? JSON.parse(saved) : fallback;
+    const seen = new Set<string>();
+    const unique: AuditLog[] = [];
+    for (const log of sourceLogs) {
+      const id = log.id || ensureUUID();
+      if (!seen.has(id)) {
+        seen.add(id);
+        unique.push({ ...log, id });
+      }
+    }
+    return unique.length > 0 ? unique : fallback;
   });
 
   // Route Navigation State
@@ -282,12 +365,12 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   // Supabase Auth State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => isDemoModeActive());
+  const [authLoading, setAuthLoading] = useState<boolean>(() => !isDemoModeActive());
   const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(() => {
     return isRecoveryModeActive();
   });
-  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [organizationId, setOrganizationId] = useState<string | null>(() => ensureUUID('default-pharmacy-org'));
 
   // Sync with global recovery state emitter
   useEffect(() => {
@@ -301,21 +384,42 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return unsub;
   }, []);
 
-  const [currentUser, setCurrentUser] = useState<User>({
-    id: 'usr-guest',
-    name: 'Pharmacy Admin',
-    email: '',
-    role: 'Super Admin',
-    status: 'Active'
+  const [currentUser, setCurrentUser] = useState<User>(() => {
+    const isDemo = isDemoModeActive();
+    if (isDemo) {
+      const savedUser = localStorage.getItem(DEMO_STORAGE_PREFIX + 'currentUser');
+      if (savedUser) {
+        try { return JSON.parse(savedUser); } catch (e) { /* ignore */ }
+      }
+      return demoUsers[0]; // John Mensah (Pharmacy Owner)
+    }
+    return {
+      id: 'usr-guest',
+      name: 'Pharmacy Admin',
+      email: '',
+      role: 'Super Admin',
+      status: 'Active'
+    };
   });
 
   // Supabase Backend Integration State
-  const [supabaseStatus, setSupabaseStatus] = useState<SupabaseSyncStatus>({
-    connected: false,
-    message: 'Initializing Supabase backend connection...',
-    lastSyncedAt: null,
-    syncing: false,
-    organizationId: null
+  const [supabaseStatus, setSupabaseStatus] = useState<SupabaseSyncStatus>(() => {
+    if (isDemoModeActive()) {
+      return {
+        connected: true,
+        message: 'Demo Mode Active • HealthPlus Pharmacy (Ghana GH₵)',
+        lastSyncedAt: new Date().toLocaleTimeString(),
+        syncing: false,
+        organizationId: 'demo-healthplus-ghana-org'
+      };
+    }
+    return {
+      connected: false,
+      message: 'Initializing Supabase backend connection...',
+      lastSyncedAt: null,
+      syncing: false,
+      organizationId: null
+    };
   });
 
   // Refresh authoritative data from Supabase for current tenant
@@ -340,7 +444,16 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setPrescriptions(dbRxs);
       setExpenses(dbExps);
       if (dbLogs.length > 0) {
-        setAuditLogs(dbLogs);
+        const seen = new Set<string>();
+        const unique: AuditLog[] = [];
+        for (const log of dbLogs) {
+          const id = log.id || ensureUUID();
+          if (!seen.has(id)) {
+            seen.add(id);
+            unique.push({ ...log, id });
+          }
+        }
+        setAuditLogs(unique);
       }
 
       if (orgData) {
@@ -846,57 +959,151 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'settings', JSON.stringify(settings));
-  }, [settings]);
+    localStorage.setItem(activePrefix + 'settings', JSON.stringify(settings));
+  }, [settings, activePrefix]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'categories', JSON.stringify(categories));
-  }, [categories]);
+    localStorage.setItem(activePrefix + 'categories', JSON.stringify(categories));
+  }, [categories, activePrefix]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'suppliers', JSON.stringify(suppliers));
-  }, [suppliers]);
+    localStorage.setItem(activePrefix + 'suppliers', JSON.stringify(suppliers));
+  }, [suppliers, activePrefix]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'customers', JSON.stringify(customers));
-  }, [customers]);
+    localStorage.setItem(activePrefix + 'customers', JSON.stringify(customers));
+  }, [customers, activePrefix]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'medicines', JSON.stringify(medicines));
-  }, [medicines]);
+    localStorage.setItem(activePrefix + 'medicines', JSON.stringify(medicines));
+  }, [medicines, activePrefix]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'sales', JSON.stringify(sales));
-  }, [sales]);
+    localStorage.setItem(activePrefix + 'sales', JSON.stringify(sales));
+  }, [sales, activePrefix]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'purchases', JSON.stringify(purchases));
-  }, [purchases]);
+    localStorage.setItem(activePrefix + 'purchases', JSON.stringify(purchases));
+  }, [purchases, activePrefix]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'prescriptions', JSON.stringify(prescriptions));
-  }, [prescriptions]);
+    localStorage.setItem(activePrefix + 'prescriptions', JSON.stringify(prescriptions));
+  }, [prescriptions, activePrefix]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'expenses', JSON.stringify(expenses));
-  }, [expenses]);
+    localStorage.setItem(activePrefix + 'expenses', JSON.stringify(expenses));
+  }, [expenses, activePrefix]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'users', JSON.stringify(users));
-  }, [users]);
+    localStorage.setItem(activePrefix + 'users', JSON.stringify(users));
+  }, [users, activePrefix]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_PREFIX + 'auditLogs', JSON.stringify(auditLogs));
-  }, [auditLogs]);
+    localStorage.setItem(activePrefix + 'auditLogs', JSON.stringify(auditLogs));
+  }, [auditLogs, activePrefix]);
 
   const toggleTheme = () => {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  const switchRole = (_role: UserRole) => {
-    // SECURITY: Client-side role switching is prohibited.
+  // Demo Mode Handlers
+  const toggleDemoMode = useCallback((active?: boolean) => {
+    const next = active !== undefined ? active : !isDemoMode;
+    setIsDemoMode(next);
+    setDemoModeActive(next);
+    const prefix = next ? DEMO_STORAGE_PREFIX : STORAGE_PREFIX;
+
+    if (next) {
+      // Switched ON Demo Mode
+      const savedSettings = localStorage.getItem(prefix + 'settings');
+      setSettings(savedSettings ? JSON.parse(savedSettings) : demoPharmacySettings);
+      setCategories(demoCategories);
+      setSuppliers(demoSuppliers);
+      setCustomers(demoCustomers);
+      setMedicines(demoMedicines);
+      setSales(demoSales);
+      setPurchases(demoPurchases);
+      setPrescriptions(demoPrescriptions);
+      setExpenses(demoExpenses);
+      setUsers(demoUsers);
+      setAuditLogs(demoAuditLogs);
+      setCurrentUser(demoUsers[0]);
+      setIsAuthenticated(true);
+      setAuthLoading(false);
+      setSupabaseStatus({
+        connected: true,
+        message: 'Demo Mode Active • HealthPlus Pharmacy (Ghana GH₵)',
+        lastSyncedAt: new Date().toLocaleTimeString(),
+        syncing: false,
+        organizationId: 'demo-healthplus-ghana-org'
+      });
+    } else {
+      // Switched to production mode
+      const savedSettings = localStorage.getItem(STORAGE_PREFIX + 'settings');
+      setSettings(savedSettings ? JSON.parse(savedSettings) : initialSettings);
+      setCategories(initialCategories);
+      setSuppliers(initialSuppliers);
+      setCustomers(initialCustomers);
+      setMedicines(initialMedicines);
+      setSales(initialSales);
+      setPurchases(initialPurchases);
+      setPrescriptions(initialPrescriptions);
+      setExpenses(initialExpenses);
+      setUsers(initialUsers);
+      setAuditLogs(initialAuditLogs);
+      setIsAuthenticated(false);
+    }
+  }, [isDemoMode]);
+
+  const resetDemoData = useCallback(() => {
+    resetDemoStorage();
+    setSettings(demoPharmacySettings);
+    setCategories(demoCategories);
+    setSuppliers(demoSuppliers);
+    setCustomers(demoCustomers);
+    setMedicines(demoMedicines);
+    setSales(demoSales);
+    setPurchases(demoPurchases);
+    setPrescriptions(demoPrescriptions);
+    setExpenses(demoExpenses);
+    setUsers(demoUsers);
+    setAuditLogs(demoAuditLogs);
+    setCurrentUser(demoUsers[0]);
+  }, []);
+
+  const switchDemoUser = useCallback((userOrId: string | User) => {
+    let targetUser: User | undefined;
+    if (typeof userOrId === 'string') {
+      targetUser = demoUsers.find(
+        u => u.id === userOrId || u.role.toLowerCase() === userOrId.toLowerCase()
+      );
+    } else {
+      targetUser = userOrId;
+    }
+    if (targetUser) {
+      setCurrentUser(targetUser);
+      localStorage.setItem(DEMO_STORAGE_PREFIX + 'currentUser', JSON.stringify(targetUser));
+      const log: AuditLog = {
+        id: ensureUUID(),
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        userName: targetUser.name,
+        role: targetUser.role,
+        action: 'Switched Demo Presenter Role',
+        module: 'Demo Presentation',
+        details: `Active role switched to ${targetUser.name} (${targetUser.role}) for feature evaluation`
+      };
+      setAuditLogs(prev => [log, ...prev]);
+    }
+  }, []);
+
+  const switchRole = (role: UserRole) => {
+    if (isDemoMode) {
+      switchDemoUser(role);
+      return;
+    }
+    // SECURITY: In production mode, client-side role switching is prohibited.
     // User roles are strictly derived from verified Supabase organization_members + roles records.
-    console.warn('[Security Guard] Manual role modification rejected. Role is authoritatively enforced by PostgreSQL RBAC.');
+    console.warn('[Security Guard] Manual role modification rejected in production. Role is authoritatively enforced by PostgreSQL RBAC.');
   };
 
   // Supabase Auth Email/Password Sign In
@@ -1205,20 +1412,18 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
 
-    // 2. If authenticated with Supabase session and organization, execute atomic RPC
-    if (isAuthenticated && organizationId) {
-      const { data, error } = await executeAtomicSaleTransaction({
-        items: saleData.items,
-        customerId: saleData.customerId,
-        paymentMethod: saleData.paymentMethod
-      });
+    // 2. If authenticated, online, and connected with Supabase session and organization, attempt atomic RPC
+    const isNetworkOnline = typeof navigator === 'undefined' || navigator.onLine;
 
-      if (error || !data || !data.success) {
-        // Refresh catalog in background so UI displays current true stock
-        refreshFromSupabase().catch(() => {});
-        const errorMsg = error?.message || 'Sale transaction failed on server.';
-        throw new Error(errorMsg);
-      }
+    if (isAuthenticated && organizationId && isNetworkOnline) {
+      try {
+        const { data, error } = await executeAtomicSaleTransaction({
+          items: saleData.items,
+          customerId: saleData.customerId,
+          paymentMethod: saleData.paymentMethod
+        });
+
+        if (!error && data && data.success) {
 
       // Build authoritative Sale object using PostgreSQL database returned values
       const authoritativeSale: Sale = {
@@ -1285,9 +1490,13 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setAuditLogs(prev => [newLog, ...prev]);
 
       return authoritativeSale;
+        }
+      } catch (err) {
+        console.warn('Atomic sale transaction failed, falling back to local/standard sync:', err);
+      }
     }
 
-    // 3. Fallback for unauthenticated/demo mode: Strict in-memory stock verification and atomic deduction
+    // 3. Fallback for unauthenticated/offline/demo mode: Strict in-memory stock verification and atomic deduction
     for (const item of saleData.items) {
       const med = medicines.find(m => m.id === item.medicineId);
       if (!med) {
@@ -1308,6 +1517,17 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     setSales(prev => [newSale, ...prev]);
+
+    // Sync to Supabase and enqueue offline transaction
+    syncSaleToSupabase(newSale, organizationId || undefined, currentUser ? currentUser.id : undefined);
+    enqueueOfflineTransaction({
+      id: newSale.id,
+      type: 'sale',
+      action: 'insert',
+      payload: newSale,
+      userId: currentUser ? currentUser.id : undefined,
+      userName: currentUser ? currentUser.name : undefined
+    });
 
     // Deduct inventory quantities
     setMedicines(prevMeds => prevMeds.map(m => {
@@ -1463,13 +1683,94 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       organizationId || undefined,
       currentUser.id !== 'usr-guest' ? currentUser.id : undefined
     );
+    enqueueOfflineTransaction({
+      id: newExp.id,
+      type: 'expense',
+      action: 'insert',
+      payload: newExp,
+      userId: currentUser.id,
+      userName: currentUser.name
+    });
     addAuditLog(`Recorded Expense: ${newExp.description}`, 'Expenses', `Amount: ${settings.currencySymbol}${newExp.amount}`);
+  };
+
+  const updateExpense = (id: string, updated: Partial<Expense>) => {
+    setExpenses(prev => prev.map(e => {
+      if (e.id === id) {
+        const result = { ...e, ...updated };
+        syncExpenseToSupabase(result, organizationId || undefined, currentUser.id !== 'usr-guest' ? currentUser.id : undefined);
+        enqueueOfflineTransaction({
+          id,
+          type: 'expense',
+          action: 'update',
+          payload: result,
+          userId: currentUser.id,
+          userName: currentUser.name
+        });
+        return result;
+      }
+      return e;
+    }));
+    addAuditLog(`Updated Expense details`, 'Expenses', `Expense ID: ${id}`);
   };
 
   const deleteExpense = (id: string) => {
     setExpenses(prev => prev.filter(e => e.id !== id));
     deleteExpenseFromSupabase(id, organizationId || undefined);
+    enqueueOfflineTransaction({
+      id,
+      type: 'expense',
+      action: 'delete',
+      payload: { id },
+      userId: currentUser.id,
+      userName: currentUser.name
+    });
     addAuditLog(`Deleted Expense`, 'Expenses', `Expense ID: ${id}`);
+  };
+
+  const recordPurchasePayment = (purchaseId: string, amount: number, paymentMethod: string, notes?: string) => {
+    let affectedSupplierId: string | null = null;
+    let poNumber = '';
+
+    setPurchases(prev => prev.map(p => {
+      if (p.id === purchaseId) {
+        affectedSupplierId = p.supplierId;
+        poNumber = p.purchaseOrderNo;
+        const newPaid = (p.amountPaid || 0) + amount;
+        const newStatus: Purchase['paymentStatus'] = newPaid >= p.totalAmount ? 'Paid' : newPaid > 0 ? 'Partial' : 'Pending';
+        return {
+          ...p,
+          amountPaid: newPaid,
+          paymentStatus: newStatus,
+          notes: notes ? `${p.notes ? p.notes + ' | ' : ''}Payment: ${settings.currencySymbol}${amount} via ${paymentMethod}` : p.notes
+        };
+      }
+      return p;
+    }));
+
+    if (affectedSupplierId) {
+      setSuppliers(prev => prev.map(s => {
+        if (s.id === affectedSupplierId) {
+          const updated = {
+            ...s,
+            balanceOwed: Math.max(0, s.balanceOwed - amount)
+          };
+          syncSupplierToSupabase(updated, organizationId || undefined);
+          enqueueOfflineTransaction({
+            id: s.id,
+            type: 'supplier',
+            action: 'update',
+            payload: updated,
+            userId: currentUser.id,
+            userName: currentUser.name
+          });
+          return updated;
+        }
+        return s;
+      }));
+    }
+
+    addAuditLog(`Recorded Supplier Payment`, 'Payables', `PO ${poNumber}: Paid ${settings.currencySymbol}${amount} via ${paymentMethod}`);
   };
 
   const addUser = (userData: Omit<User, 'id'>) => {
@@ -1505,6 +1806,8 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         toggleTheme,
         activeTab,
         setActiveTab,
+        financialsSubTab,
+        setFinancialsSubTab,
         isAuthenticated,
         authLoading,
         isPasswordRecovery,
@@ -1546,7 +1849,9 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updatePrescriptionStatus,
         expenses,
         addExpense,
+        updateExpense,
         deleteExpense,
+        recordPurchasePayment,
         users,
         addUser,
         updateUserStatus,
@@ -1560,7 +1865,12 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         getMedicineById,
         getLowStockCount,
         getExpiringSoonCount,
-        getExpiredCount
+        getExpiredCount,
+        isDemoMode,
+        toggleDemoMode,
+        resetDemoData,
+        switchDemoUser,
+        demoUsersList: demoUsers
       }}
     >
       {children}

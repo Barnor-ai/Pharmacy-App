@@ -159,7 +159,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="flex items-baseline gap-2">
             <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
-              {formatCurrency(todayRevenue, settings.currencySymbol)}
+              {todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h3>
             {todaySales.length > 0 && (
               <span className="inline-flex items-center text-xs font-bold text-emerald-600 dark:text-emerald-400">
@@ -184,11 +184,11 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="flex items-baseline gap-2">
             <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
-              {formatCurrency(totalInventoryValuation, settings.currencySymbol)}
+              {totalInventoryValuation.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h3>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Retail worth: {formatCurrency(totalSellingValuation, settings.currencySymbol)}
+            Retail worth: {totalSellingValuation.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
         </div>
 
@@ -396,7 +396,7 @@ export const Dashboard: React.FC = () => {
           <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
             <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase">Total Patient Spend</span>
             <p className="text-xl font-black text-slate-900 dark:text-white mt-1">
-              {formatCurrency(customers.reduce((acc, c) => acc + (c.totalSpent || 0), 0), settings.currencySymbol)}
+              {customers.reduce((acc, c) => acc + (c.totalSpent || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
           <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-900/60">
@@ -410,8 +410,8 @@ export const Dashboard: React.FC = () => {
         {/* Customer Directory List Cards or Clean Empty State */}
         {customers.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-            {customers.slice(0, 3).map((cust) => (
-              <div key={cust.id} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-2">
+            {customers.slice(0, 3).map((cust, idx) => (
+              <div key={`dash-cust-${cust.id}-${idx}`} className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs text-slate-900 dark:text-white">{cust.name}</span>
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
@@ -497,8 +497,8 @@ export const Dashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {alertMedicines.map(m => (
-                  <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                {alertMedicines.map((m, idx) => (
+                  <tr key={`alert-med-${m.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="p-3 font-semibold text-slate-900 dark:text-white">
                       {m.name}
                       <span className="block text-[11px] font-normal text-slate-500">{m.strength} • {m.genericName}</span>

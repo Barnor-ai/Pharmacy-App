@@ -599,8 +599,8 @@ export const StaffManagement: React.FC = () => {
                   </td>
                 </tr>
               ) : members.length > 0 ? (
-                members.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                members.map((m, idx) => (
+                  <tr key={`member-row-${m.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-bold flex items-center justify-center text-xs shadow-sm overflow-hidden">
                         {m.profile?.avatar_url ? (
@@ -694,8 +694,8 @@ export const StaffManagement: React.FC = () => {
                 ))
               ) : (
                 // Local Users Fallback view
-                users.map(u => (
-                  <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                users.map((u, idx) => (
+                  <tr key={`user-row-${u.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">
                         {u.name.charAt(0)}

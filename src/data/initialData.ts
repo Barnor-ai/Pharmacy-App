@@ -39,13 +39,25 @@ export const initialSettings: PharmacySettings = {
 };
 
 export const initialCategories: Category[] = [
+  // 10 Major Medicine Categories
+  { id: "cat-vitamins", name: "Vitamins & Supplements", description: "Nutritional supplements, multivitamins and immunity boosters" },
+  { id: "cat-cough-cold", name: "Cough, Cold & Flu", description: "Decongestants, cough syrups, antihistamines and flu relief" },
+  { id: "cat-pain-relief", name: "Pain Relief", description: "Analgesics, anti-inflammatories, fever reducers and muscle relief" },
+  { id: "cat-mens-health", name: "Men's Health", description: "Prostate care, testosterone support, hair retention and vitality" },
+  { id: "cat-womens-health", name: "Women's Health", description: "Hormone balance, menopause relief, menstrual care and wellness" },
+  { id: "cat-pregnancy", name: "Conception & Pregnancy", description: "Prenatal vitamins, folic acid, fertility tests and maternity care" },
+  { id: "cat-baby-child", name: "Baby & Child Health", description: "Pediatric syrups, colic drops, teething gel and child nutrition" },
+  { id: "cat-diet-fitness", name: "Diet & Fitness", description: "Protein powders, weight management, hydration and energy" },
+  { id: "cat-sexual-wellness", name: "Sexual Wellness", description: "Intimate health, reproductive care and wellness products" },
+  { id: "cat-beauty-supplements", name: "Beauty Supplements", description: "Collagen, biotin, skin radiance and hair & nail nutrients" },
+
+  // Preserved Therapeutic Categories
   { id: "cat-1", name: "Antibiotics", description: "Bacterial infection treatments and antimicrobials" },
   { id: "cat-2", name: "Analgesics & Antipyretics", description: "Pain relievers and fever reducers" },
   { id: "cat-3", name: "Cardiovascular", description: "Blood pressure, cholesterol, and heart health" },
   { id: "cat-4", name: "Diabetes Care", description: "Blood glucose management and insulin support" },
   { id: "cat-5", name: "Gastrointestinal", description: "Antacids, proton pump inhibitors, and digestive aid" },
   { id: "cat-6", name: "Respiratory", description: "Asthma inhalers, allergy relief, and cough syrups" },
-  { id: "cat-7", name: "Vitamins & Supplements", description: "Nutritional supplements and immunity boosters" },
   { id: "cat-8", name: "Dermatological", description: "Topical creams, ointments, and skin care" },
 ];
 
@@ -575,6 +587,192 @@ export const initialSales: Sale[] = [
     status: "Completed",
     cashierName: "Sarah Cashier",
     createdAt: "2026-08-12T14:10:00Z"
+  },
+  {
+    id: "sale-104",
+    invoiceNo: "INV-2026-00404",
+    customerId: "cust-1",
+    customerName: "Eleanor Vance",
+    items: [
+      {
+        medicineId: "med-1",
+        barcode: "89010203001",
+        name: "Amoxil Capsules 500mg",
+        genericName: "Amoxicillin Trihydrate",
+        dosageForm: "Capsule",
+        unitPrice: 18.50,
+        quantity: 2,
+        discount: 0,
+        total: 37.00,
+        isPrescriptionRequired: true
+      },
+      {
+        medicineId: "med-2",
+        barcode: "89010203002",
+        name: "Panadol Extra",
+        genericName: "Paracetamol / Caffeine",
+        dosageForm: "Tablet",
+        unitPrice: 6.50,
+        quantity: 3,
+        discount: 0,
+        total: 19.50,
+        isPrescriptionRequired: false
+      }
+    ],
+    subtotal: 56.50,
+    taxAmount: 4.24,
+    discountAmount: 0.00,
+    grandTotal: 60.74,
+    paymentMethod: "Cash",
+    amountPaid: 70.00,
+    changeGiven: 9.26,
+    status: "Completed",
+    cashierName: "Sarah Cashier",
+    createdAt: "2026-09-24T10:30:00Z"
+  },
+  {
+    id: "sale-105",
+    invoiceNo: "INV-2026-00405",
+    customerName: "Walk-in Customer",
+    items: [
+      {
+        medicineId: "med-4",
+        barcode: "89010203004",
+        name: "Lipitor 20mg",
+        genericName: "Atorvastatin Calcium",
+        dosageForm: "Tablet",
+        unitPrice: 32.00,
+        quantity: 1,
+        discount: 2.00,
+        total: 30.00,
+        isPrescriptionRequired: true
+      }
+    ],
+    subtotal: 30.00,
+    taxAmount: 2.25,
+    discountAmount: 2.00,
+    grandTotal: 32.25,
+    paymentMethod: "Mobile Payment",
+    amountPaid: 32.25,
+    changeGiven: 0.00,
+    status: "Completed",
+    cashierName: "Sarah Cashier",
+    createdAt: "2026-09-25T08:15:00Z"
+  },
+  // Historical 2025 Sales
+  {
+    id: "sale-2025-01",
+    invoiceNo: "INV-2025-08101",
+    customerId: "cust-1",
+    customerName: "Eleanor Vance",
+    items: [
+      {
+        medicineId: "med-1",
+        barcode: "89010203001",
+        name: "Amoxil Capsules 500mg",
+        genericName: "Amoxicillin Trihydrate",
+        dosageForm: "Capsule",
+        unitPrice: 17.50,
+        quantity: 4,
+        discount: 0,
+        total: 70.00,
+        isPrescriptionRequired: true
+      },
+      {
+        medicineId: "med-5",
+        barcode: "89010203005",
+        name: "Ventolin Evohaler",
+        genericName: "Salbutamol Sulfate",
+        dosageForm: "Aerosol Inhaler",
+        unitPrice: 22.00,
+        quantity: 2,
+        discount: 0,
+        total: 44.00,
+        isPrescriptionRequired: true
+      }
+    ],
+    subtotal: 114.00,
+    taxAmount: 8.55,
+    discountAmount: 4.00,
+    grandTotal: 118.55,
+    paymentMethod: "Credit Card",
+    amountPaid: 118.55,
+    changeGiven: 0.00,
+    status: "Completed",
+    cashierName: "John Pharmacist",
+    createdAt: "2025-11-14T14:22:00Z"
+  },
+  {
+    id: "sale-2025-02",
+    invoiceNo: "INV-2025-09204",
+    customerId: "cust-2",
+    customerName: "Marcus Aurelius Thorne",
+    items: [
+      {
+        medicineId: "med-3",
+        barcode: "89010203003",
+        name: "Glucophage XR",
+        genericName: "Metformin Hydrochloride",
+        dosageForm: "Extended Release Tablet",
+        unitPrice: 27.00,
+        quantity: 3,
+        discount: 0,
+        total: 81.00,
+        isPrescriptionRequired: true
+      }
+    ],
+    subtotal: 81.00,
+    taxAmount: 6.08,
+    discountAmount: 0.00,
+    grandTotal: 87.08,
+    paymentMethod: "Cash",
+    amountPaid: 90.00,
+    changeGiven: 2.92,
+    status: "Completed",
+    cashierName: "Sarah Cashier",
+    createdAt: "2025-12-20T16:45:00Z"
+  },
+  // Historical 2024 Sales
+  {
+    id: "sale-2024-01",
+    invoiceNo: "INV-2024-05101",
+    customerName: "Walk-in Customer",
+    items: [
+      {
+        medicineId: "med-2",
+        barcode: "89010203002",
+        name: "Panadol Extra",
+        genericName: "Paracetamol / Caffeine",
+        dosageForm: "Tablet",
+        unitPrice: 5.50,
+        quantity: 5,
+        discount: 0,
+        total: 27.50,
+        isPrescriptionRequired: false
+      },
+      {
+        medicineId: "med-6",
+        barcode: "89010203006",
+        name: "Cebion Vitamin C",
+        genericName: "Ascorbic Acid",
+        dosageForm: "Effervescent Tablet",
+        unitPrice: 7.50,
+        quantity: 2,
+        discount: 0,
+        total: 15.00,
+        isPrescriptionRequired: false
+      }
+    ],
+    subtotal: 42.50,
+    taxAmount: 3.19,
+    discountAmount: 0.00,
+    grandTotal: 45.69,
+    paymentMethod: "Cash",
+    amountPaid: 50.00,
+    changeGiven: 4.31,
+    status: "Completed",
+    cashierName: "John Pharmacist",
+    createdAt: "2024-10-18T11:10:00Z"
   }
 ];
 
@@ -607,6 +805,8 @@ export const initialPurchases: Purchase[] = [
       }
     ],
     totalAmount: 2150.00,
+    amountPaid: 2150.00,
+    dueDate: "2026-09-01",
     paymentStatus: "Paid",
     deliveryStatus: "Received",
     orderDate: "2026-08-01",
@@ -631,32 +831,165 @@ export const initialPurchases: Purchase[] = [
       }
     ],
     totalAmount: 1200.00,
-    paymentStatus: "Pending",
+    amountPaid: 400.00,
+    dueDate: "2026-09-10",
+    paymentStatus: "Partial",
     deliveryStatus: "Pending",
     orderDate: "2026-08-10",
     expectedDeliveryDate: "2026-08-15",
     notes: "Urgent restocking order for low stock diabetes meds."
+  },
+  {
+    id: "po-103",
+    purchaseOrderNo: "PO-2026-093",
+    supplierId: "sup-1",
+    supplierName: "PharmaCare Global Distributors",
+    items: [
+      {
+        medicineId: "med-2",
+        name: "Panadol Extra",
+        batchNumber: "PAN-2025-01",
+        expiryDate: "2027-05-30",
+        quantityOrdered: 200,
+        quantityReceived: 200,
+        unitCost: 3.80,
+        totalCost: 760.00
+      },
+      {
+        medicineId: "med-6",
+        name: "Cebion Vitamin C",
+        batchNumber: "CEB-2025-04",
+        expiryDate: "2027-09-15",
+        quantityOrdered: 100,
+        quantityReceived: 100,
+        unitCost: 4.50,
+        totalCost: 450.00
+      }
+    ],
+    totalAmount: 1210.00,
+    amountPaid: 0.00,
+    dueDate: "2026-09-15",
+    paymentStatus: "Overdue",
+    deliveryStatus: "Received",
+    orderDate: "2026-08-15",
+    receivedDate: "2026-08-18",
+    notes: "Awaiting invoice settlement."
+  },
+  {
+    id: "po-2025-01",
+    purchaseOrderNo: "PO-2025-045",
+    supplierId: "sup-2",
+    supplierName: "Apex Healthcare Supplies",
+    items: [
+      {
+        medicineId: "med-5",
+        name: "Ventolin Evohaler",
+        batchNumber: "VTN-2024-11",
+        expiryDate: "2026-11-01",
+        quantityOrdered: 150,
+        quantityReceived: 150,
+        unitCost: 14.00,
+        totalCost: 2100.00
+      }
+    ],
+    totalAmount: 2100.00,
+    amountPaid: 2100.00,
+    dueDate: "2025-11-30",
+    paymentStatus: "Paid",
+    deliveryStatus: "Received",
+    orderDate: "2025-11-02",
+    receivedDate: "2025-11-05",
+    notes: "Seasonal winter respiratory stock."
   }
 ];
 
 export const initialExpenses: Expense[] = [
   {
     id: "exp-1",
-    category: "Utilities",
-    description: "Electricity bill for pharmacy refrigeration & AC",
+    category: "Electricity",
+    description: "Monthly electricity bill for refrigeration & dispensary AC",
     amount: 450.00,
-    date: "2026-08-05",
+    date: "2026-09-05",
     paymentMethod: "Bank Transfer",
-    recordedBy: "Super Admin"
+    recordedBy: "Super Admin",
+    payee: "Metropolitan Power Utility",
+    referenceNumber: "ELEC-2026-09"
   },
   {
     id: "exp-2",
-    category: "Equipment",
-    description: "Cold chain temperature data logger calibration",
+    category: "Repairs & Maintenance",
+    description: "Cold chain temperature logger calibration & service",
     amount: 180.00,
-    date: "2026-08-08",
+    date: "2026-09-08",
     paymentMethod: "Credit Card",
-    recordedBy: "Super Admin"
+    recordedBy: "Super Admin",
+    payee: "BioTech Precision Services",
+    referenceNumber: "INV-9921"
+  },
+  {
+    id: "exp-3",
+    category: "Rent",
+    description: "Monthly retail pharmacy facility lease",
+    amount: 2200.00,
+    date: "2026-09-01",
+    paymentMethod: "Bank Transfer",
+    recordedBy: "Super Admin",
+    payee: "City Commercial Properties",
+    referenceNumber: "RENT-SEP-26"
+  },
+  {
+    id: "exp-4",
+    category: "Internet",
+    description: "High-speed optical fiber internet & POS gateway",
+    amount: 95.00,
+    date: "2026-09-12",
+    paymentMethod: "Mobile Payment",
+    recordedBy: "Store Manager",
+    payee: "Telecom Express",
+    referenceNumber: "NET-2026-09"
+  },
+  {
+    id: "exp-5",
+    category: "Office Supplies",
+    description: "Thermal POS receipt paper rolls (box of 50)",
+    amount: 65.00,
+    date: "2026-09-15",
+    paymentMethod: "Cash",
+    recordedBy: "Sarah Cashier",
+    payee: "Stationery Depot",
+    referenceNumber: "REC-4410"
+  },
+  // 2025 Expenses
+  {
+    id: "exp-2025-01",
+    category: "Rent",
+    description: "Monthly pharmacy premise rent",
+    amount: 2100.00,
+    date: "2025-12-01",
+    paymentMethod: "Bank Transfer",
+    recordedBy: "Super Admin",
+    payee: "City Commercial Properties"
+  },
+  {
+    id: "exp-2025-02",
+    category: "Salaries & Wages",
+    description: "Staff payroll & pharmacist dispensary bonus",
+    amount: 3800.00,
+    date: "2025-12-25",
+    paymentMethod: "Bank Transfer",
+    recordedBy: "Super Admin",
+    payee: "Pharmacy Staff Accounts"
+  },
+  // 2024 Expenses
+  {
+    id: "exp-2024-01",
+    category: "Licences & Registration",
+    description: "State Pharmacy Council annual license renewal",
+    amount: 650.00,
+    date: "2024-10-10",
+    paymentMethod: "Bank Transfer",
+    recordedBy: "Super Admin",
+    payee: "State Pharmacy Licensing Board"
   }
 ];
 

@@ -4,6 +4,7 @@ import { NavigationTab } from '../types';
 import { DownloadAppModal } from './DownloadAppModal';
 import { SupabaseSyncModal } from './SupabaseSyncModal';
 import { ChangePasswordModal } from './ChangePasswordModal';
+import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { uploadAvatarToSupabase, updateUserProfileInSupabase } from '../lib/supabaseService';
 import {
   Sun,
@@ -27,7 +28,12 @@ import {
   ChevronDown,
   Loader2,
   Check,
-  Trash2
+  Trash2,
+  RotateCcw,
+  Info,
+  CheckCircle2,
+  Layers,
+  Globe
 } from 'lucide-react';
 
 interface TopbarProps {
@@ -49,12 +55,19 @@ export const Topbar: React.FC<TopbarProps> = ({ sidebarCollapsed }) => {
     setCurrentUser,
     logout,
     addAuditLog,
-    supabaseStatus
+    supabaseStatus,
+    isDemoMode,
+    toggleDemoMode,
+    resetDemoData,
+    switchDemoUser,
+    demoUsersList
   } = usePharmacy();
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
+  const [showDemoInfoModal, setShowDemoInfoModal] = useState(false);
+  const [resetSuccessToast, setResetSuccessToast] = useState(false);
 
   // User Profile Dropdown & Photo Upload States
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -191,6 +204,7 @@ export const Topbar: React.FC<TopbarProps> = ({ sidebarCollapsed }) => {
     suppliers: { title: 'Supplier Directory', subtitle: 'Vendor contacts, balances & payment terms' },
     customers: { title: 'Patient Profiles', subtitle: 'Customer history, allergies & loyalty rewards' },
     reports: { title: 'Reports & Analytics', subtitle: 'Revenue, profit margins & inventory valuation' },
+    financials: { title: 'Financials & Accounting', subtitle: 'Income, expenses, supplier payables, and P&L statements' },
     'ai-assistant': { title: 'PharmaAI Operations Assistant', subtitle: 'Instant answers on sales, stock & pharmacy advice' },
     users: { title: 'Staff & User Roles', subtitle: 'Access permissions & user accounts' },
     'audit-logs': { title: 'Audit Trail', subtitle: 'System activity & security event logs' },
@@ -309,6 +323,61 @@ export const Topbar: React.FC<TopbarProps> = ({ sidebarCollapsed }) => {
           )}
         </div>
 
+        {/* Dedicated DEMO MODE Indicator & Role Switcher */}
+        {isDemoMode ? (
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              onClick={() => setShowDemoInfoModal(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-bold transition shadow-xs group"
+              title="Click to view Demo Presentation Overview & Settings"
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <span className="tracking-wide">DEMO MODE</span>
+              <Info className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity" />
+            </button>
+
+            {/* Quick Demo Role Switcher */}
+            <div className="relative hidden md:block">
+              <select
+                value={currentUser.id}
+                onChange={(e) => switchDemoUser(e.target.value)}
+                className="py-1.5 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
+                title="Switch demo user role to test permissions"
+              >
+                {demoUsersList?.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quick Reset Demo Data Button */}
+            <button
+              onClick={() => {
+                if (window.confirm("Reset all medicines, sales (2024-2026), purchases, expenses, and prescriptions back to pristine sample state?")) {
+                  resetDemoData();
+                  setResetSuccessToast(true);
+                  setTimeout(() => setResetSuccessToast(false), 3500);
+                }
+              }}
+              className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-400 transition"
+              title="Reset Demo Data back to pristine state"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => toggleDemoMode(true)}
+            className="hidden lg:flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 px-2.5 py-1.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 transition"
+            title="Enable Demo Presentation Mode"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Enable Demo Mode</span>
+          </button>
+        )}
+
         {/* Quick Currency Selector Dropdown */}
         <div className="relative">
           <select
@@ -344,20 +413,8 @@ export const Topbar: React.FC<TopbarProps> = ({ sidebarCollapsed }) => {
           </select>
         </div>
 
-        {/* Install App Button */}
-        {!isInstalled && (
-          <button
-            onClick={handleTriggerInstall}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition group relative"
-            title="Install Pharmacy App"
-          >
-            <Download className="w-4 h-4 text-emerald-100 group-hover:translate-y-0.5 transition-transform" />
-            <span className="hidden sm:inline">Install App</span>
-            {deferredPrompt && (
-              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping absolute -top-0.5 -right-0.5" />
-            )}
-          </button>
-        )}
+        {/* Synchronization Indicator */}
+        <SyncStatusIndicator />
 
         {/* Theme Toggle Button */}
         <button
@@ -578,6 +635,169 @@ export const Topbar: React.FC<TopbarProps> = ({ sidebarCollapsed }) => {
         isOpen={showSupabaseModal}
         onClose={() => setShowSupabaseModal(false)}
       />
+
+      {/* Demo Presentation Overview & Controls Modal */}
+      {showDemoInfoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-amber-500/10 via-emerald-500/5 to-transparent">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                  <Info className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Demo / Presentation Environment
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                      SAMPLE DATA
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    HealthPlus Pharmacy • Accra, Ghana • GHS (GH₵)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDemoInfoModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+              {/* Notice Banner */}
+              <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+                <p className="font-semibold mb-1">Presentation Mode Information Notice:</p>
+                This environment is pre-loaded with realistic fictional information designed specifically for demonstrations to pharmacy owners, partners, and investors. All customer identities, medical records, and financial figures are sample data and isolated from production.
+              </div>
+
+              {/* Demo Profile Details */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Organization</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">HealthPlus Pharmacy</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Location</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">Accra, Ghana</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Currency</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">GHS (GH₵)</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Time Periods</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">2024, 2025, 2026</span>
+                </div>
+              </div>
+
+              {/* Quick Role Switcher for Evaluators */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2.5">
+                  Select Demo User Profile (Test Role-Based Permissions):
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {demoUsersList?.map((u) => {
+                    const isSelected = currentUser.id === u.id;
+                    return (
+                      <button
+                        key={u.id}
+                        onClick={() => switchDemoUser(u.id)}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition ${
+                          isSelected
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-900 dark:text-emerald-200 shadow-xs'
+                            : 'bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:border-slate-400 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 truncate">
+                          {u.avatar ? (
+                            <img src={u.avatar} alt={u.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold flex items-center justify-center text-xs shrink-0">
+                              {u.name.charAt(0)}
+                            </div>
+                          )}
+                          <div className="truncate">
+                            <p className="font-bold truncate">{u.name}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{u.role}</p>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-500 text-white shrink-0">
+                            Active
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Dataset Summary */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+                <p className="font-bold text-slate-900 dark:text-white mb-2">Pre-populated Presentation Datasets:</p>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>• <strong>50+ Medicines</strong> across 14 categories</div>
+                  <div>• <strong>150+ POS Transactions</strong> (2024–2026)</div>
+                  <div>• <strong>35 Customers</strong> with loyalty points</div>
+                  <div>• <strong>10 Suppliers</strong> with payables reconciliation</div>
+                  <div>• <strong>Clinical Prescriptions</strong> with dosages</div>
+                  <div>• <strong>Financial P&L Statements</strong> & expenses</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/50">
+              <button
+                onClick={() => {
+                  if (window.confirm("Reset all medicines, sales, and expenses back to clean demo baseline?")) {
+                    resetDemoData();
+                    setResetSuccessToast(true);
+                    setTimeout(() => setResetSuccessToast(false), 3500);
+                    setShowDemoInfoModal(false);
+                  }
+                }}
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 text-xs font-bold transition shadow-sm"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Demo Data</span>
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  onClick={() => {
+                    toggleDemoMode(!isDemoMode);
+                    setShowDemoInfoModal(false);
+                  }}
+                  className="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                >
+                  {isDemoMode ? "Disable Demo Mode" : "Enable Demo Mode"}
+                </button>
+                <button
+                  onClick={() => setShowDemoInfoModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold transition"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notice for Demo Reset */}
+      {resetSuccessToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-emerald-600 text-white shadow-2xl animate-in slide-in-from-bottom-5 duration-200 text-xs font-semibold">
+          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+          <span>Demo environment successfully reset to pristine presentation state!</span>
+        </div>
+      )}
     </header>
   );
 };

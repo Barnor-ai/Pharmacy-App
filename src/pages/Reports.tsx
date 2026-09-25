@@ -384,8 +384,8 @@ export const Reports: React.FC = () => {
               .slice()
               .sort((a, b) => b.stockQuantity * b.purchasePrice - a.stockQuantity * a.purchasePrice)
               .slice(0, 5)
-              .map(m => (
-                <div key={m.id} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 flex justify-between items-center text-xs">
+              .map((m, index) => (
+                <div key={`top-val-${m.id}-${index}`} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 flex justify-between items-center text-xs">
                   <div>
                     <h5 className="font-bold text-slate-900 dark:text-white">{m.name}</h5>
                     <p className="text-slate-500">{m.stockQuantity} units in stock</p>

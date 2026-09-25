@@ -43,8 +43,6 @@ export const SettingsPage: React.FC = () => {
     { id: 'profile' as const, label: 'My Profile', icon: User, adminOnly: false },
     { id: 'pharmacy' as const, label: 'Pharmacy Settings', icon: Building2, adminOnly: true },
     { id: 'subscription' as const, label: 'Subscription & Billing', icon: CreditCard, adminOnly: true },
-    { id: 'system-health' as const, label: 'System Health', icon: Activity, adminOnly: true },
-    { id: 'data-export' as const, label: 'Data Export & Backup', icon: Server, adminOnly: true },
     { id: 'security' as const, label: 'Security & Auth', icon: ShieldAlert, adminOnly: false },
     { id: 'staff' as const, label: 'Staff Management', icon: Users, adminOnly: true },
     { id: 'roles' as const, label: 'Roles & Permissions', icon: ShieldCheck, adminOnly: true },
