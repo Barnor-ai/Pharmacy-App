@@ -169,10 +169,12 @@ interface PharmacyContextType {
   purchases: Purchase[];
   addPurchaseOrder: (po: Omit<Purchase, 'id' | 'purchaseOrderNo' | 'deliveryStatus'>) => void;
   receivePurchaseOrder: (poId: string) => void;
+  deletePurchaseOrder: (id: string) => void;
 
   prescriptions: Prescription[];
   addPrescription: (rx: Omit<Prescription, 'id' | 'prescriptionNo' | 'createdAt' | 'status'>) => void;
   updatePrescriptionStatus: (id: string, status: Prescription['status'], notes?: string) => void;
+  deletePrescription: (id: string) => void;
 
   expenses: Expense[];
   addExpense: (expense: Omit<Expense, 'id'>) => void;
@@ -1641,6 +1643,12 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     addAuditLog(`Received Stock for Purchase Order ${po.purchaseOrderNo}`, 'Purchases', `Inventory updated.`);
   };
 
+  const deletePurchaseOrder = (id: string) => {
+    const po = purchases.find(p => p.id === id);
+    setPurchases(prev => prev.filter(p => p.id !== id));
+    addAuditLog(`Deleted Purchase Order: ${po?.purchaseOrderNo || id}`, 'Purchases', `Purchase Order removed`);
+  };
+
   const addPrescription = (rxData: Omit<Prescription, 'id' | 'prescriptionNo' | 'createdAt' | 'status'>) => {
     const rxNo = `RX-${new Date().getFullYear()}-${String(prescriptions.length + 893).padStart(4, '0')}`;
     const newRx: Prescription = {
@@ -1670,6 +1678,12 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return updatedRx;
     }));
     addAuditLog(`Updated Prescription status to ${status}`, 'Prescriptions', `Prescription ID: ${id}`);
+  };
+
+  const deletePrescription = (id: string) => {
+    const rx = prescriptions.find(p => p.id === id);
+    setPrescriptions(prev => prev.filter(p => p.id !== id));
+    addAuditLog(`Deleted Prescription: ${rx?.prescriptionNo || id}`, 'Prescriptions', `Prescription record removed`);
   };
 
   const addExpense = (expData: Omit<Expense, 'id'>) => {
@@ -1844,9 +1858,11 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         purchases,
         addPurchaseOrder,
         receivePurchaseOrder,
+        deletePurchaseOrder,
         prescriptions,
         addPrescription,
         updatePrescriptionStatus,
+        deletePrescription,
         expenses,
         addExpense,
         updateExpense,

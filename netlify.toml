@@ -2,13 +2,35 @@
   command = "npm run build"
   publish = "dist"
 
-# SPA Fallback - Redirect all routes to index.html with 200 status code
+# Asset 404 rule - prevent missing CSS/JS/images from returning index.html
+[[redirects]]
+  from = "/assets/*"
+  status = 404
+
+# SPA Fallback - Redirect client-side routes to index.html with 200 status code
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
   force = false
 
+# Strict no-cache for HTML and Service Worker so deployments take effect immediately
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Long-term immutable caching for versioned build assets
 [[headers]]
   for = "/assets/*"
   [headers.values]

@@ -4,6 +4,8 @@ import { formatCurrency, formatDate } from '../lib/formatters';
 import { FinancialsSubTab, Expense, Sale, Purchase } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { SearchInput } from '../components/SearchInput';
+import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 import {
   DollarSign,
   TrendingUp,
@@ -248,6 +250,8 @@ export const FinancialsPage: React.FC = () => {
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const [isDeletingExpense, setIsDeletingExpense] = useState(false);
   const [expenseSearch, setExpenseSearch] = useState('');
   const [selectedExpenseCategoryFilter, setSelectedExpenseCategoryFilter] = useState('ALL');
 
@@ -349,8 +353,9 @@ export const FinancialsPage: React.FC = () => {
     return rangeExpenses.filter(e => {
       const matchesCat =
         selectedExpenseCategoryFilter === 'ALL' || e.category === selectedExpenseCategoryFilter;
-      const q = expenseSearch.toLowerCase();
+      const q = expenseSearch.trim().toLowerCase();
       const matchesSearch =
+        !q ||
         e.description.toLowerCase().includes(q) ||
         (e.payee && e.payee.toLowerCase().includes(q)) ||
         (e.referenceNumber && e.referenceNumber.toLowerCase().includes(q)) ||
@@ -435,8 +440,9 @@ export const FinancialsPage: React.FC = () => {
     return payablesList.filter(item => {
       const matchesStatus =
         payablesFilterStatus === 'ALL' || item.paymentStatus === payablesFilterStatus;
-      const q = payablesSearch.toLowerCase();
+      const q = payablesSearch.trim().toLowerCase();
       const matchesSearch =
+        !q ||
         item.supplierName.toLowerCase().includes(q) ||
         item.invoiceNo.toLowerCase().includes(q);
       return matchesStatus && matchesSearch;
@@ -1008,22 +1014,21 @@ export const FinancialsPage: React.FC = () => {
 
           {/* Filters & Search Bar */}
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative w-full sm:w-64">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search description, payee, ref #..."
+            <div className="flex flex-wrap items-center gap-2 flex-1">
+              <div className="w-full sm:w-72">
+                <SearchInput
                   value={expenseSearch}
-                  onChange={e => setExpenseSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                  onChange={setExpenseSearch}
+                  placeholder="Search description, payee, ref #..."
+                  totalCount={rangeExpenses.length}
+                  matchCount={filteredExpensesList.length}
                 />
               </div>
 
               <select
                 value={selectedExpenseCategoryFilter}
                 onChange={e => setSelectedExpenseCategoryFilter(e.target.value)}
-                className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 outline-none"
+                className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 outline-none"
               >
                 <option value="ALL">All Categories</option>
                 {allExpenseCategories.map(cat => (
@@ -1065,7 +1070,21 @@ export const FinancialsPage: React.FC = () => {
                   {filteredExpensesList.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="p-8 text-center text-slate-400">
-                        No expenses recorded matching the selected filter.
+                        {expenseSearch.trim() ? (
+                          <div className="space-y-2">
+                            <p className="font-semibold text-slate-700 dark:text-slate-300">
+                              No expenses found matching "{expenseSearch.trim()}".
+                            </p>
+                            <button
+                              onClick={() => setExpenseSearch('')}
+                              className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                            >
+                              Clear Search
+                            </button>
+                          </div>
+                        ) : (
+                          'No expenses recorded matching the selected filter.'
+                        )}
                       </td>
                     </tr>
                   ) : (
@@ -1104,7 +1123,7 @@ export const FinancialsPage: React.FC = () => {
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => deleteExpense(exp.id)}
+                              onClick={() => setExpenseToDelete(exp)}
                               className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 transition"
                               title="Delete Expense"
                             >
@@ -1184,22 +1203,21 @@ export const FinancialsPage: React.FC = () => {
 
           {/* Payables Search & Status Filters */}
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative w-full sm:w-64">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search supplier or invoice #..."
+            <div className="flex flex-wrap items-center gap-2 flex-1">
+              <div className="w-full sm:w-72">
+                <SearchInput
                   value={payablesSearch}
-                  onChange={e => setPayablesSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                  onChange={setPayablesSearch}
+                  placeholder="Search supplier or invoice #..."
+                  totalCount={payablesList.length}
+                  matchCount={filteredPayables.length}
                 />
               </div>
 
               <select
                 value={payablesFilterStatus}
                 onChange={e => setPayablesFilterStatus(e.target.value)}
-                className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 outline-none"
+                className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 outline-none"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="Unpaid">Unpaid</option>
@@ -1231,7 +1249,21 @@ export const FinancialsPage: React.FC = () => {
                   {filteredPayables.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="p-8 text-center text-slate-400">
-                        No supplier invoices found matching filter.
+                        {payablesSearch.trim() ? (
+                          <div className="space-y-2">
+                            <p className="font-semibold text-slate-700 dark:text-slate-300">
+                              No supplier invoices found matching "{payablesSearch.trim()}".
+                            </p>
+                            <button
+                              onClick={() => setPayablesSearch('')}
+                              className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                            >
+                              Clear Search
+                            </button>
+                          </div>
+                        ) : (
+                          'No supplier invoices found matching filter.'
+                        )}
                       </td>
                     </tr>
                   ) : (
@@ -2132,6 +2164,40 @@ export const FinancialsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Expense Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={Boolean(expenseToDelete)}
+        title="Delete Expense Record"
+        recordName={
+          expenseToDelete
+            ? `${expenseToDelete.description} (${formatCurrency(expenseToDelete.amount, settings.currencySymbol)})`
+            : ''
+        }
+        recordType="expense"
+        consequences="This operating expense entry will be permanently deleted from the general ledger. Real-time profit and loss statements and net margin statistics will be recalculated immediately."
+        warningNote={
+          expenseToDelete?.referenceNumber
+            ? `Contains transaction reference: ${expenseToDelete.referenceNumber}`
+            : undefined
+        }
+        confirmButtonText="Delete Expense"
+        isDeleting={isDeletingExpense}
+        onCancel={() => {
+          if (!isDeletingExpense) setExpenseToDelete(null);
+        }}
+        onConfirm={async () => {
+          if (!expenseToDelete) return;
+          setIsDeletingExpense(true);
+          try {
+            await deleteExpense(expenseToDelete.id);
+            setExpenseSuccessMsg('Expense entry deleted successfully.');
+            setExpenseToDelete(null);
+          } finally {
+            setIsDeletingExpense(false);
+          }
+        }}
+      />
     </div>
   );
 };

@@ -26,8 +26,11 @@ import {
   Check,
   Sparkles,
   FileText,
-  ShieldCheck
+  ShieldCheck,
+  Search
 } from 'lucide-react';
+import { SearchInput } from '../components/SearchInput';
+import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 import {
   fetchOrganizationMembersFromSupabase,
   updateMemberRoleInSupabase,
@@ -52,6 +55,7 @@ export const StaffManagement: React.FC = () => {
   const [members, setMembers] = useState<OrganizationMemberDetail[]>([]);
   const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string; description: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Email Service Status & Diagnostics
   const [emailStatus, setEmailStatus] = useState<EmailServiceStatus | null>(null);
@@ -107,6 +111,25 @@ export const StaffManagement: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const isOwnerOrAdmin = currentUser.role === 'Super Admin' || currentUser.role === 'Store Manager';
+
+  const trimmedSearch = searchQuery.trim().toLowerCase();
+
+  const filteredMembers = members.filter(m => {
+    if (!trimmedSearch) return true;
+    const name = (m.profile?.full_name || '').toLowerCase();
+    const email = (m.profile?.email || '').toLowerCase();
+    const role = (m.role?.name || '').toLowerCase();
+    return name.includes(trimmedSearch) || email.includes(trimmedSearch) || role.includes(trimmedSearch);
+  });
+
+  const filteredUsers = users.filter(u => {
+    if (!trimmedSearch) return true;
+    const name = u.name.toLowerCase();
+    const email = u.email.toLowerCase();
+    const role = u.role.toLowerCase();
+    const phone = (u.phone || '').toLowerCase();
+    return name.includes(trimmedSearch) || email.includes(trimmedSearch) || role.includes(trimmedSearch) || phone.includes(trimmedSearch);
+  });
 
   const copyToClipboard = async (text: string, key: string) => {
     try {
@@ -568,13 +591,19 @@ export const StaffManagement: React.FC = () => {
 
       {/* Staff Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="font-bold text-sm text-slate-900 dark:text-white">Active Pharmacy Personnel</h3>
             <p className="text-xs text-slate-500">Authorized login credentials and assigned operational roles</p>
           </div>
-          <div className="text-xs text-slate-500">
-            Total Staff: <span className="font-bold text-slate-900 dark:text-white">{members.length > 0 ? members.length : users.length}</span>
+          <div className="w-full sm:w-72">
+            <SearchInput
+              placeholder="Search staff by name, email, or role..."
+              value={searchQuery}
+              onChange={setSearchQuery}
+              matchCount={members.length > 0 ? filteredMembers.length : filteredUsers.length}
+              totalCount={members.length > 0 ? members.length : users.length}
+            />
           </div>
         </div>
 
@@ -599,7 +628,27 @@ export const StaffManagement: React.FC = () => {
                   </td>
                 </tr>
               ) : members.length > 0 ? (
-                members.map((m, idx) => (
+                filteredMembers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
+                          <Search className="w-5 h-5" />
+                        </div>
+                        <p className="font-bold text-xs text-slate-900 dark:text-white">No staff members found</p>
+                        <p className="text-[11px] text-slate-500 max-w-xs">No personnel match your search &quot;{searchQuery}&quot;.</p>
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-xs font-semibold cursor-pointer"
+                        >
+                          Clear Search
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMembers.map((m, idx) => (
                   <tr key={`member-row-${m.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-bold flex items-center justify-center text-xs shadow-sm overflow-hidden">
@@ -692,9 +741,28 @@ export const StaffManagement: React.FC = () => {
                     </td>
                   </tr>
                 ))
-              ) : (
-                // Local Users Fallback view
-                users.map((u, idx) => (
+              )
+            ) : filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
+                          <Search className="w-5 h-5" />
+                        </div>
+                        <p className="font-bold text-xs text-slate-900 dark:text-white">No staff members found</p>
+                        <p className="text-[11px] text-slate-500 max-w-xs">No personnel match your search &quot;{searchQuery}&quot;.</p>
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-xs font-semibold cursor-pointer"
+                        >
+                          Clear Search
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u, idx) => (
                   <tr key={`user-row-${u.id}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">
@@ -1425,68 +1493,22 @@ export const StaffManagement: React.FC = () => {
       )}
 
       {/* Delete Staff Member Confirmation Modal */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-xs animate-in zoom-in-95">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-base text-slate-900 dark:text-white">Remove Staff Member</h3>
-                <p className="text-slate-500 dark:text-slate-400 text-xs">Revoke access and remove credentials</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
-              <p className="text-slate-700 dark:text-slate-200 font-medium">
-                Are you sure you want to remove <span className="font-bold text-slate-900 dark:text-white">{deleteTarget.name}</span>?
-              </p>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
-                {deleteTarget.email && (
-                  <p>📧 Email: <span className="font-mono text-slate-700 dark:text-slate-300">{deleteTarget.email}</span></p>
-                )}
-                {deleteTarget.role && (
-                  <p>🛡️ Assigned Role: <span className="font-semibold text-slate-700 dark:text-slate-300">{deleteTarget.role}</span></p>
-                )}
-              </div>
-            </div>
-
-            <p className="text-[11px] text-rose-600 dark:text-rose-400">
-              ⚠️ This user will no longer be able to log in, process sales, or access pharmacy management features.
-            </p>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(null)}
-                disabled={isDeleting}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-bold transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={isDeleting}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-600/20 transition cursor-pointer"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Removing...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Confirm Remove</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmationModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        title="Remove Staff Member"
+        recordName={deleteTarget ? `${deleteTarget.name} (${deleteTarget.role || 'Staff Member'}${deleteTarget.email ? ' • ' + deleteTarget.email : ''})` : ''}
+        recordType="Staff Member"
+        consequenceMessage="This will permanently revoke all application access permissions and invalidate credentials for this user. They will no longer be able to log in or process pharmacy operations."
+        warningNote={
+          deleteTarget?.isOwner
+            ? 'Cannot remove the primary organization owner.'
+            : 'Associated audit logs, previous POS sales receipts, and historical actions will remain preserved.'
+        }
+        confirmButtonText="Remove Staff Member"
+        isDeleting={isDeleting}
+      />
     </div>
   );
 };

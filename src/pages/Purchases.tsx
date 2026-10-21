@@ -2,12 +2,34 @@ import React, { useState } from 'react';
 import { usePharmacy } from '../context/PharmacyContext';
 import { Purchase, PurchaseItem } from '../types';
 import { formatCurrency, formatDate } from '../lib/formatters';
-import { Search, Plus, PackageCheck, CheckCircle2, Truck, X, ShoppingBag } from 'lucide-react';
+import { SearchInput } from '../components/SearchInput';
+import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
+import {
+  Search,
+  Plus,
+  PackageCheck,
+  CheckCircle2,
+  Truck,
+  X,
+  ShoppingBag,
+  Trash2
+} from 'lucide-react';
 
 export const Purchases: React.FC = () => {
-  const { purchases, suppliers, medicines, settings, addPurchaseOrder, receivePurchaseOrder } = usePharmacy();
+  const {
+    purchases,
+    suppliers,
+    medicines,
+    settings,
+    addPurchaseOrder,
+    receivePurchaseOrder,
+    deletePurchaseOrder
+  } = usePharmacy();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [poToDelete, setPoToDelete] = useState<Purchase | null>(null);
+  const [isDeletingPO, setIsDeletingPO] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Form State
   const [selectedSupplierId, setSelectedSupplierId] = useState(suppliers[0]?.id || '');
@@ -27,10 +49,15 @@ export const Purchases: React.FC = () => {
     }
   ]);
 
-  const filteredPurchases = purchases.filter(p =>
-    p.purchaseOrderNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.supplierName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPurchases = purchases.filter(p => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      p.purchaseOrderNo.toLowerCase().includes(q) ||
+      p.supplierName.toLowerCase().includes(q) ||
+      (p.items && p.items.some(i => i.name.toLowerCase().includes(q) || (i.batchNumber && i.batchNumber.toLowerCase().includes(q))))
+    );
+  });
 
   const handleAddItem = () => {
     const defaultMed = medicines[0];
@@ -85,10 +112,25 @@ export const Purchases: React.FC = () => {
     });
 
     setShowAddModal(false);
+    setToastMessage(`Purchase Order created successfully for ${sup.name}.`);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   return (
     <div className="space-y-6">
+      {/* Toast Alert */}
+      {toastMessage && (
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-between text-xs font-bold shadow-sm animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span>{toastMessage}</span>
+          </div>
+          <button onClick={() => setToastMessage(null)} className="hover:opacity-75">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Purchases & Stock-In</h1>
@@ -99,11 +141,24 @@ export const Purchases: React.FC = () => {
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
         >
           <Plus className="w-4 h-4" /> Create Purchase Order
         </button>
       </div>
+
+      {/* Search Input Bar */}
+      {purchases.length > 0 && (
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <SearchInput
+            placeholder="Search by Purchase Order #, Supplier name, or item description..."
+            value={searchQuery}
+            onChange={setSearchQuery}
+            matchCount={filteredPurchases.length}
+            totalCount={purchases.length}
+          />
+        </div>
+      )}
 
       {/* Table */}
       <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -121,7 +176,7 @@ export const Purchases: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {filteredPurchases.length === 0 ? (
+              {purchases.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center space-y-3">
@@ -131,9 +186,32 @@ export const Purchases: React.FC = () => {
                       <div className="space-y-1">
                         <p className="font-bold text-sm text-slate-900 dark:text-white">No purchase orders recorded yet</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
-                          Click "+ Create Purchase Order" to log incoming stock shipments from wholesale suppliers.
+                          Click &quot;+ Create Purchase Order&quot; to log incoming stock shipments from wholesale suppliers.
                         </p>
                       </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredPurchases.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
+                        <ShoppingBag className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-sm text-slate-900 dark:text-white">No matching purchase orders found</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
+                          No orders match your search query &quot;{searchQuery}&quot;. Check the spelling or reset your query.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold cursor-pointer"
+                      >
+                        Clear Search
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -163,20 +241,30 @@ export const Purchases: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-3 text-right">
-                      {p.deliveryStatus === 'Pending' && (
+                      <div className="flex items-center justify-end gap-1.5">
+                        {p.deliveryStatus === 'Pending' && (
+                          <button
+                            onClick={() => receivePurchaseOrder(p.id)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                            title="Receive Stock"
+                          >
+                            <PackageCheck className="w-3.5 h-3.5" />
+                            <span>Receive Stock</span>
+                          </button>
+                        )}
+                        {p.deliveryStatus === 'Received' && (
+                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            Received {formatDate(p.receivedDate)}
+                          </span>
+                        )}
                         <button
-                          onClick={() => receivePurchaseOrder(p.id)}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 ml-auto cursor-pointer shadow-sm"
-                          title="Receive Stock"
+                          onClick={() => setPoToDelete(p)}
+                          className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 transition cursor-pointer"
+                          title="Delete Purchase Order"
                         >
-                          <PackageCheck className="w-3.5 h-3.5" /> Receive Stock
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                      {p.deliveryStatus === 'Received' && (
-                        <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                          Received on {formatDate(p.receivedDate)}
-                        </span>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -189,7 +277,7 @@ export const Purchases: React.FC = () => {
       {/* Add PO Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 my-8 text-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 my-8 text-xs animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b">
               <h3 className="font-bold text-base text-slate-900 dark:text-white">Create Purchase Order</h3>
               <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
@@ -218,59 +306,75 @@ export const Purchases: React.FC = () => {
                     onChange={e => setPaymentStatus(e.target.value as any)}
                     className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border"
                   >
-                    <option value="Pending">Pending (Net 30/45)</option>
-                    <option value="Paid">Paid Immediately</option>
+                    <option value="Pending">Pending (Unpaid)</option>
+                    <option value="Partial">Partial</option>
+                    <option value="Paid">Fully Paid</option>
                   </select>
                 </div>
               </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-bold">Order Line Items</h4>
+              {/* Items List */}
+              <div className="space-y-2 border-t pt-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold">Ordered Medicine Items</span>
                   <button type="button" onClick={handleAddItem} className="text-emerald-600 font-bold hover:underline">
-                    + Add Item
+                    + Add Item Row
                   </button>
                 </div>
 
-                <div className="space-y-2">
-                  {poItems.map((item, idx) => (
-                    <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border grid grid-cols-1 sm:grid-cols-4 gap-2 items-center">
+                {poItems.map((item, idx) => (
+                  <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border grid grid-cols-12 gap-2 items-center">
+                    <div className="col-span-5">
+                      <label className="block text-[10px] text-slate-400">Medicine</label>
                       <select
                         value={item.medicineId}
                         onChange={e => handleMedChange(idx, e.target.value)}
-                        className="p-2 rounded bg-white dark:bg-slate-900 border font-semibold"
+                        className="w-full p-1.5 rounded-lg border bg-white dark:bg-slate-800 text-[11px]"
                       >
                         {medicines.map(m => (
-                          <option key={m.id} value={m.id}>{m.name}</option>
+                          <option key={m.id} value={m.id}>{m.name} ({m.strength})</option>
                         ))}
                       </select>
-
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] text-slate-400">Qty Ordered</label>
                       <input
                         type="number"
-                        placeholder="Quantity"
+                        min="1"
                         value={item.quantityOrdered}
-                        onChange={e => handleQtyChange(idx, parseInt(e.target.value) || 0)}
-                        className="p-2 rounded bg-white dark:bg-slate-900 border font-bold"
+                        onChange={e => handleQtyChange(idx, parseInt(e.target.value) || 1)}
+                        className="w-full p-1.5 rounded-lg border bg-white dark:bg-slate-800 text-[11px]"
                       />
-
-                      <input
-                        type="text"
-                        placeholder="Batch #"
-                        value={item.batchNumber}
-                        onChange={e => {
-                          const updated = [...poItems];
-                          updated[idx].batchNumber = e.target.value;
-                          setPoItems(updated);
-                        }}
-                        className="p-2 rounded bg-white dark:bg-slate-900 border font-mono"
-                      />
-
-                      <div className="font-bold text-right text-emerald-600">
-                        {formatCurrency(item.totalCost, settings.currencySymbol)}
-                      </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] text-slate-400">Cost/Unit</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.unitCost}
+                        readOnly
+                        className="w-full p-1.5 rounded-lg border bg-slate-100 dark:bg-slate-800/80 text-[11px]"
+                      />
+                    </div>
+                    <div className="col-span-3 text-right">
+                      <label className="block text-[10px] text-slate-400">Line Subtotal</label>
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        {formatCurrency(item.totalCost, settings.currencySymbol)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-1">Purchase Order Notes</label>
+                <textarea
+                  rows={2}
+                  placeholder="Optional delivery or batch tracking instructions..."
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border"
+                />
               </div>
 
               <div className="flex justify-between items-center pt-3 border-t text-sm font-extrabold">
@@ -292,6 +396,35 @@ export const Purchases: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete PO Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={!!poToDelete}
+        onClose={() => setPoToDelete(null)}
+        onConfirm={async () => {
+          if (!poToDelete) return;
+          setIsDeletingPO(true);
+          try {
+            deletePurchaseOrder(poToDelete.id);
+            setToastMessage(`Purchase order ${poToDelete.purchaseOrderNo} was deleted.`);
+            setPoToDelete(null);
+            setTimeout(() => setToastMessage(null), 3500);
+          } finally {
+            setIsDeletingPO(false);
+          }
+        }}
+        title="Delete Purchase Order"
+        recordName={poToDelete ? `${poToDelete.purchaseOrderNo} • ${poToDelete.supplierName} (${formatCurrency(poToDelete.totalAmount, settings.currencySymbol)})` : ''}
+        recordType="Purchase Order"
+        consequenceMessage="This will permanently delete this purchase order record."
+        warningNote={
+          poToDelete && poToDelete.deliveryStatus === 'Received'
+            ? 'Notice: This order was marked as Received. Deleting this purchase order record will remove it from procurement history, but already received items in your stock will remain unless manually adjusted in Inventory.'
+            : undefined
+        }
+        confirmButtonText="Delete Purchase Order"
+        isDeleting={isDeletingPO}
+      />
     </div>
   );
 };

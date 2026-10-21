@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { usePharmacy } from '../context/PharmacyContext';
 import { formatCurrency } from '../lib/formatters';
 import { Supplier } from '../types';
+import { SearchInput } from '../components/SearchInput';
+import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 import {
   Truck,
   Plus,
@@ -10,6 +12,7 @@ import {
   MapPin,
   X,
   Edit2,
+  Trash2,
   CheckCircle2,
   AlertCircle,
   FileText,
@@ -19,11 +22,16 @@ import {
 } from 'lucide-react';
 
 export const Suppliers: React.FC = () => {
-  const { suppliers, addSupplier, updateSupplier, settings, currentUser } = usePharmacy();
+  const { suppliers, addSupplier, updateSupplier, deleteSupplier, settings, currentUser } = usePharmacy();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Search & Delete states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
+  const [isDeletingSupplier, setIsDeletingSupplier] = useState(false);
 
   // Form state
   const [name, setName] = useState('');
@@ -41,6 +49,19 @@ export const Suppliers: React.FC = () => {
     currentUser.role === 'Super Admin' ||
     currentUser.role === 'Store Manager' ||
     currentUser.role === 'Pharmacist';
+
+  const filteredSuppliers = suppliers.filter(s => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      s.name.toLowerCase().includes(q) ||
+      (s.contactPerson && s.contactPerson.toLowerCase().includes(q)) ||
+      (s.email && s.email.toLowerCase().includes(q)) ||
+      (s.phone && s.phone.toLowerCase().includes(q)) ||
+      (s.category && s.category.toLowerCase().includes(q)) ||
+      (s.paymentTerms && s.paymentTerms.toLowerCase().includes(q))
+    );
+  });
 
   const resetForm = () => {
     setName('');
@@ -172,6 +193,19 @@ export const Suppliers: React.FC = () => {
         )}
       </div>
 
+      {/* Search Input Bar */}
+      {suppliers.length > 0 && (
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <SearchInput
+            placeholder="Search suppliers by name, contact person, phone, email, category..."
+            value={searchQuery}
+            onChange={setSearchQuery}
+            matchCount={filteredSuppliers.length}
+            totalCount={suppliers.length}
+          />
+        </div>
+      )}
+
       {suppliers.length === 0 ? (
         <div className="p-12 text-center rounded-2xl bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
           <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
@@ -192,9 +226,28 @@ export const Suppliers: React.FC = () => {
             </button>
           )}
         </div>
+      ) : filteredSuppliers.length === 0 ? (
+        <div className="p-12 text-center rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+            <Truck className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">No matching suppliers found</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+              No registered suppliers match your search query &quot;{searchQuery}&quot;. Check the spelling or reset your query.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer"
+          >
+            Clear Search
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {suppliers.map((s, idx) => (
+          {filteredSuppliers.map((s, idx) => (
             <div
               key={`sup-card-${s.id}-${idx}`}
               className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition"
@@ -232,13 +285,22 @@ export const Suppliers: React.FC = () => {
                   </div>
 
                   {canManageSuppliers && (
-                    <button
-                      onClick={() => handleOpenEditModal(s)}
-                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
-                      title="Edit Supplier"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleOpenEditModal(s)}
+                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                        title="Edit Supplier"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setSupplierToDelete(s)}
+                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 transition cursor-pointer"
+                        title="Remove Supplier"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -614,6 +676,35 @@ export const Suppliers: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Supplier Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={!!supplierToDelete}
+        onClose={() => setSupplierToDelete(null)}
+        onConfirm={async () => {
+          if (!supplierToDelete) return;
+          setIsDeletingSupplier(true);
+          try {
+            deleteSupplier(supplierToDelete.id);
+            setSuccessMessage(`Supplier "${supplierToDelete.name}" was successfully removed.`);
+            setSupplierToDelete(null);
+            setTimeout(() => setSuccessMessage(null), 3500);
+          } finally {
+            setIsDeletingSupplier(false);
+          }
+        }}
+        title="Remove Supplier"
+        recordName={supplierToDelete?.name || ''}
+        recordType="Supplier"
+        consequenceMessage="This will remove this supplier from your active directory. Historical purchase orders from this supplier will be preserved for financial tracking."
+        warningNote={
+          supplierToDelete && supplierToDelete.balanceOwed > 0
+            ? `Notice: You currently have an outstanding payable balance of ${formatCurrency(supplierToDelete.balanceOwed, settings.currencySymbol)} owed to this supplier.`
+            : undefined
+        }
+        confirmButtonText="Remove Supplier"
+        isDeleting={isDeletingSupplier}
+      />
     </div>
   );
 };

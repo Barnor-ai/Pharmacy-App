@@ -44,6 +44,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // Detect OAuth return errors from redirect hash/search query
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(
+      window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
+    );
+
+    const errorParam = searchParams.get('error') || hashParams.get('error');
+    const rawErrorDesc = searchParams.get('error_description') || hashParams.get('error_description');
+
+    if (errorParam || rawErrorDesc) {
+      let desc = rawErrorDesc;
+      if (desc) {
+        try {
+          desc = decodeURIComponent(desc.replace(/\+/g, ' '));
+        } catch {
+          // fallback
+        }
+      }
+
+      if (errorParam === 'access_denied') {
+        setError('Google sign-in was cancelled. Please try again or sign in with your email and password.');
+      } else {
+        setError(desc || `Google sign-in failed (${errorParam}). Please try again.`);
+      }
+
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   const validateEmail = (emailStr: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr);
   };
@@ -88,10 +119,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       const res = await signInWithGoogleOAuth();
       if (!res.success) {
         setError(res.message || 'Google sign-in could not be initiated.');
+        setGoogleLoading(false);
       }
+      // If success, keep googleLoading active while the browser transitions to Google's OAuth portal
     } catch (err: any) {
       setError(err?.message || 'An unexpected error occurred during Google sign-in.');
-    } finally {
       setGoogleLoading(false);
     }
   };

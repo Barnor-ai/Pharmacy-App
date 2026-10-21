@@ -4,17 +4,27 @@ import { Sale, SaleItem } from '../types';
 import { formatCurrency, formatDateTime } from '../lib/formatters';
 import { generateInvoicePDF } from '../lib/pdf/generateInvoicePDF';
 import { Search, ReceiptText, Download, RotateCcw, Eye, X, Printer, FileDown, CheckCircle2, ShoppingBag } from 'lucide-react';
+import { SearchInput } from '../components/SearchInput';
+import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 
 export const SalesHistory: React.FC = () => {
   const { sales, settings, refundSale } = usePharmacy();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [saleToRefund, setSaleToRefund] = useState<Sale | null>(null);
+  const [isRefundingSale, setIsRefundingSale] = useState(false);
 
-  const filteredSales = sales.filter(s =>
-    s.invoiceNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.cashierName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredSales = sales.filter(s => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      s.invoiceNo.toLowerCase().includes(q) ||
+      s.customerName.toLowerCase().includes(q) ||
+      s.cashierName.toLowerCase().includes(q) ||
+      s.paymentMethod.toLowerCase().includes(q) ||
+      (s.items && s.items.some(i => i.name.toLowerCase().includes(q) || (i.genericName && i.genericName.toLowerCase().includes(q))))
+    );
+  });
 
   const handleDownloadInvoicePDF = (s: Sale) => {
     generateInvoicePDF({
@@ -79,18 +89,17 @@ export const SalesHistory: React.FC = () => {
       </div>
 
       {/* Search Bar */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="relative max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by Invoice #, Customer, or Cashier..."
+      {sales.length > 0 && (
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <SearchInput
+            placeholder="Search by Invoice #, Customer, Cashier, or Medicine..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            onChange={setSearchQuery}
+            matchCount={filteredSales.length}
+            totalCount={sales.length}
           />
         </div>
-      </div>
+      )}
 
       {/* Table */}
       <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -110,7 +119,7 @@ export const SalesHistory: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {filteredSales.length === 0 ? (
+              {sales.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center space-y-3">
@@ -123,6 +132,29 @@ export const SalesHistory: React.FC = () => {
                           Completed point-of-sale transactions and customer receipts will be listed here with invoice downloads.
                         </p>
                       </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredSales.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
+                        <ShoppingBag className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-bold text-sm text-slate-900 dark:text-white">No matching sales found</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
+                          No transactions match your search query &quot;{searchQuery}&quot;. Check the spelling or reset your query.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold cursor-pointer"
+                      >
+                        Clear Search
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -167,7 +199,7 @@ export const SalesHistory: React.FC = () => {
                         </button>
                         {s.status === 'Completed' && (
                           <button
-                            onClick={() => refundSale(s.id)}
+                            onClick={() => setSaleToRefund(s)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 transition cursor-pointer"
                             title="Issue Refund & Restock Items"
                           >
@@ -252,6 +284,28 @@ export const SalesHistory: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Refund Sale Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={!!saleToRefund}
+        onClose={() => setSaleToRefund(null)}
+        onConfirm={async () => {
+          if (!saleToRefund) return;
+          setIsRefundingSale(true);
+          try {
+            refundSale(saleToRefund.id);
+            setSaleToRefund(null);
+          } finally {
+            setIsRefundingSale(false);
+          }
+        }}
+        title="Issue Refund & Restock Items"
+        recordName={saleToRefund ? `${saleToRefund.invoiceNo} • ${saleToRefund.customerName} (${formatCurrency(saleToRefund.grandTotal, settings.currencySymbol)})` : ''}
+        recordType="Sale Invoice"
+        consequenceMessage="This will mark this invoice as Refunded and automatically return all purchased medicine quantities back to your active inventory stock."
+        confirmButtonText="Confirm Refund & Restock"
+        isDeleting={isRefundingSale}
+      />
     </div>
   );
 };

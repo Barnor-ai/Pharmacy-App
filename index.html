@@ -22,6 +22,10 @@
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').then(reg => {
             console.log('Pharmacy Service Worker registered successfully:', reg.scope);
+            // Trigger update check on page load to detect newly deployed builds
+            if (reg.update) {
+              reg.update();
+            }
           }).catch(err => {
             console.log('Service worker registration failed:', err);
           });

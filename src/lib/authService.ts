@@ -68,15 +68,40 @@ export async function signInWithSupabase(email: string, password: string): Promi
 export async function signInWithGoogleOAuth(): Promise<{ success: boolean; message?: string }> {
   try {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: origin ? `${origin}/` : undefined
+        redirectTo: origin ? `${origin}/` : undefined,
+        skipBrowserRedirect: true
       }
     });
 
     if (error) {
-      return { success: false, message: error.message };
+      let friendly = error.message;
+      if (
+        error.message.includes('not enabled') ||
+        error.message.includes('Unsupported provider') ||
+        error.message.includes('provider is not enabled')
+      ) {
+        friendly =
+          'Google Sign-In is not enabled in your Supabase authentication configuration. Please enable Google provider in your Supabase project under Authentication > Providers, or sign in using your email and password.';
+      }
+      return { success: false, message: friendly };
+    }
+
+    if (data?.url) {
+      // Break out of cross-origin iframes if possible, or perform standard redirection
+      const isFramed = typeof window !== 'undefined' && window.top && window.top !== window.self;
+      if (isFramed) {
+        try {
+          window.top.location.href = data.url;
+        } catch {
+          window.location.href = data.url;
+        }
+      } else if (typeof window !== 'undefined') {
+        window.location.href = data.url;
+      }
+      return { success: true };
     }
 
     return { success: true };
