@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { usePharmacy } from '../context/PharmacyContext';
 import {
   ShieldCheck,
+  ShieldAlert,
   Lock,
   Check,
   X,
@@ -130,6 +131,36 @@ export const RolesPermissionsPage: React.FC = () => {
     // Default RBAC catalog mapping fallback
     return (roleDefaultMap[roleName] || []).includes(permName);
   };
+
+  const isAdmin =
+    currentUser.role === 'Super Admin' ||
+    currentUser.role === 'Pharmacy Owner' ||
+    currentUser.role === 'Administrator';
+
+  if (!isAdmin) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in">
+        <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-3">
+          <div className="flex items-center gap-3">
+            <ShieldAlert className="w-8 h-8 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div>
+              <h2 className="text-lg font-bold">Access Restricted: Administrator Privileges Required</h2>
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                Inspection and configuration of system-wide role permissions and security policies is restricted to Pharmacy Administrators.
+              </p>
+            </div>
+          </div>
+          <div className="text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+            <p><strong>Signed in as:</strong> {currentUser.name} ({currentUser.email})</p>
+            <p><strong>Current Role:</strong> <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold">{currentUser.role}</span></p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Your active role does not include governance authority over roles and permissions. Non-admin users are restricted from viewing or altering security policies to preserve tenant integrity. If you require role adjustments, contact your system administrator.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">

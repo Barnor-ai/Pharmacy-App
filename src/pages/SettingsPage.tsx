@@ -37,7 +37,11 @@ export const SettingsPage: React.FC = () => {
   const { currentUser } = usePharmacy();
   const [activeSubTab, setActiveSubTab] = useState<SettingsSubTab>('profile');
 
-  const isOwnerOrAdmin = currentUser.role === 'Super Admin' || currentUser.role === 'Store Manager';
+  const isOwnerOrAdmin =
+    currentUser.role === 'Super Admin' ||
+    currentUser.role === 'Pharmacy Owner' ||
+    currentUser.role === 'Administrator' ||
+    currentUser.role === 'Store Manager';
 
   const subTabs = [
     { id: 'profile' as const, label: 'My Profile', icon: User, adminOnly: false },

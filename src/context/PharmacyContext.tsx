@@ -168,6 +168,7 @@ interface PharmacyContextType {
 
   purchases: Purchase[];
   addPurchaseOrder: (po: Omit<Purchase, 'id' | 'purchaseOrderNo' | 'deliveryStatus'>) => void;
+  updatePurchaseOrder: (id: string, updated: Partial<Purchase>) => { success: boolean; error?: string };
   receivePurchaseOrder: (poId: string) => void;
   deletePurchaseOrder: (id: string) => void;
 
@@ -1643,6 +1644,169 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     addAuditLog(`Received Stock for Purchase Order ${po.purchaseOrderNo}`, 'Purchases', `Inventory updated.`);
   };
 
+  const updatePurchaseOrder = (
+    id: string,
+    updated: Partial<Purchase>
+  ): { success: boolean; error?: string } => {
+    const existing = purchases.find(p => p.id === id);
+    if (!existing) {
+      return { success: false, error: 'Purchase order not found.' };
+    }
+
+    // 1. Calculate new total amount
+    const newItems = updated.items || existing.items;
+    const newTotalAmount = updated.totalAmount !== undefined
+      ? updated.totalAmount
+      : newItems.reduce((sum, item) => sum + (item.totalCost || 0), 0);
+
+    // 2. Stock Reconciliation if deliveryStatus is 'Received'
+    const wasReceived = existing.deliveryStatus === 'Received';
+    const isNowReceived = updated.deliveryStatus ? updated.deliveryStatus === 'Received' : wasReceived;
+
+    if (wasReceived && isNowReceived && updated.items) {
+      // Build a map of old quantities received: medicineId -> quantity
+      const oldQtyMap = new Map<string, number>();
+      existing.items.forEach(item => {
+        const current = oldQtyMap.get(item.medicineId) || 0;
+        oldQtyMap.set(item.medicineId, current + (item.quantityReceived || item.quantityOrdered));
+      });
+
+      // Build a map of new quantities: medicineId -> quantity
+      const newQtyMap = new Map<string, number>();
+      updated.items.forEach(item => {
+        const current = newQtyMap.get(item.medicineId) || 0;
+        newQtyMap.set(item.medicineId, current + item.quantityOrdered);
+      });
+
+      // Check for negative stock if we reduce quantities!
+      const allMedIds = new Set([...oldQtyMap.keys(), ...newQtyMap.keys()]);
+      for (const medId of allMedIds) {
+        const oldQty = oldQtyMap.get(medId) || 0;
+        const newQty = newQtyMap.get(medId) || 0;
+        const delta = newQty - oldQty;
+
+        if (delta < 0) {
+          const med = medicines.find(m => m.id === medId);
+          if (med && med.stockQuantity + delta < 0) {
+            return {
+              success: false,
+              error: `Stock reconciliation blocked: reducing ${med.name} by ${Math.abs(delta)} would result in negative stock balance (${med.stockQuantity} currently in stock). Please adjust inventory count first.`
+            };
+          }
+        }
+      }
+
+      // Safe to apply inventory deltas
+      setMedicines(prevMeds =>
+        prevMeds.map(m => {
+          const oldQty = oldQtyMap.get(m.id) || 0;
+          const newQty = newQtyMap.get(m.id) || 0;
+          const delta = newQty - oldQty;
+          if (delta !== 0) {
+            const nextStock = Math.max(0, m.stockQuantity + delta);
+            const status = computeMedicineStatus(nextStock, m.minReorderLevel, m.expiryDate);
+            const updatedMed = { ...m, stockQuantity: nextStock, status };
+            syncMedicineToSupabase(updatedMed, organizationId || undefined);
+            return updatedMed;
+          }
+          return m;
+        })
+      );
+    } else if (!wasReceived && isNowReceived) {
+      // PO transitioned from Pending to Received! Increase stock
+      setMedicines(prevMeds =>
+        prevMeds.map(m => {
+          const itemReceived = newItems.find(i => i.medicineId === m.id);
+          if (itemReceived) {
+            const newQty = m.stockQuantity + itemReceived.quantityOrdered;
+            const status = computeMedicineStatus(newQty, m.minReorderLevel, itemReceived.expiryDate || m.expiryDate);
+            const updatedMed = {
+              ...m,
+              stockQuantity: newQty,
+              batchNumber: itemReceived.batchNumber || m.batchNumber,
+              expiryDate: itemReceived.expiryDate || m.expiryDate,
+              purchasePrice: itemReceived.unitCost || m.purchasePrice,
+              status
+            };
+            syncMedicineToSupabase(updatedMed, organizationId || undefined);
+            return updatedMed;
+          }
+          return m;
+        })
+      );
+    }
+
+    // 3. Supplier Balance & Payables Reconciliation
+    const totalDelta = newTotalAmount - existing.totalAmount;
+    const oldSupplierId = existing.supplierId;
+    const newSupplierId = updated.supplierId || oldSupplierId;
+
+    if (totalDelta !== 0 || oldSupplierId !== newSupplierId) {
+      setSuppliers(prev =>
+        prev.map(s => {
+          if (oldSupplierId === newSupplierId && s.id === oldSupplierId) {
+            const isUnpaid = existing.paymentStatus !== 'Paid';
+            const balChange = isUnpaid ? totalDelta : 0;
+            const updatedSup = {
+              ...s,
+              balanceOwed: Math.max(0, s.balanceOwed + balChange),
+              totalPurchased: Math.max(0, s.totalPurchased + totalDelta)
+            };
+            syncSupplierToSupabase(updatedSup, organizationId || undefined);
+            return updatedSup;
+          } else if (oldSupplierId !== newSupplierId) {
+            if (s.id === oldSupplierId) {
+              const isUnpaid = existing.paymentStatus !== 'Paid';
+              const updatedSup = {
+                ...s,
+                balanceOwed: Math.max(0, s.balanceOwed - (isUnpaid ? existing.totalAmount : 0)),
+                totalPurchased: Math.max(0, s.totalPurchased - existing.totalAmount)
+              };
+              syncSupplierToSupabase(updatedSup, organizationId || undefined);
+              return updatedSup;
+            }
+            if (s.id === newSupplierId) {
+              const isUnpaid = (updated.paymentStatus || existing.paymentStatus) !== 'Paid';
+              const updatedSup = {
+                ...s,
+                balanceOwed: s.balanceOwed + (isUnpaid ? newTotalAmount : 0),
+                totalPurchased: s.totalPurchased + newTotalAmount
+              };
+              syncSupplierToSupabase(updatedSup, organizationId || undefined);
+              return updatedSup;
+            }
+          }
+          return s;
+        })
+      );
+    }
+
+    // 4. Update Purchase Order state
+    setPurchases(prev =>
+      prev.map(p => {
+        if (p.id === id) {
+          const merged: Purchase = {
+            ...p,
+            ...updated,
+            totalAmount: newTotalAmount,
+            items: newItems
+          };
+          return merged;
+        }
+        return p;
+      })
+    );
+
+    // 5. Record in Audit Trail with user and role
+    addAuditLog(
+      `Reconciled & Updated Purchase Order: ${existing.purchaseOrderNo}`,
+      'Purchases',
+      `Modified by ${currentUser.name} (${currentUser.role}). Supplier: ${updated.supplierName || existing.supplierName}, New Total: ${settings.currencySymbol}${newTotalAmount} (Net delta: ${totalDelta >= 0 ? '+' : ''}${totalDelta.toFixed(2)}). Stock and supplier balances reconciled.`
+    );
+
+    return { success: true };
+  };
+
   const deletePurchaseOrder = (id: string) => {
     const po = purchases.find(p => p.id === id);
     setPurchases(prev => prev.filter(p => p.id !== id));
@@ -1857,6 +2021,7 @@ export const PharmacyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         refundSale,
         purchases,
         addPurchaseOrder,
+        updatePurchaseOrder,
         receivePurchaseOrder,
         deletePurchaseOrder,
         prescriptions,

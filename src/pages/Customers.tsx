@@ -4,6 +4,8 @@ import { formatCurrency, formatDate } from '../lib/formatters';
 import { Customer } from '../types';
 import { SearchInput } from '../components/SearchInput';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
+import { CsvImportModal, CsvTargetField } from '../components/CsvImportModal';
+import { generateCSV, downloadCSV } from '../lib/csvHelper';
 import {
   Users,
   Plus,
@@ -16,13 +18,55 @@ import {
   Edit2,
   Trash2,
   Activity,
-  CheckCircle2
+  CheckCircle2,
+  Upload,
+  Download,
+  FileSpreadsheet,
+  FileDown
 } from 'lucide-react';
 
+const CUSTOMER_TARGET_FIELDS: CsvTargetField[] = [
+  { key: 'name', label: 'Patient / Client Name', required: true, description: 'Full legal name or customer name', aliases: ['full name', 'patient name', 'client name', 'customer name', 'name'] },
+  { key: 'phone', label: 'Phone Number', required: true, description: 'Mobile or telephone contact', aliases: ['mobile', 'cell', 'telephone', 'contact number', 'phone number', 'contact'] },
+  { key: 'email', label: 'Email Address', required: false, description: 'Email for invoices and clinical reminders', aliases: ['email', 'email address', 'e-mail'] },
+  { key: 'address', label: 'Residential Address', required: false, description: 'Street, city, digital address', aliases: ['address', 'location', 'residence', 'city'] },
+  { key: 'dateOfBirth', label: 'Date of Birth', required: false, description: 'YYYY-MM-DD format', aliases: ['dob', 'date of birth', 'birth date', 'birthdate'] },
+  { key: 'gender', label: 'Gender', required: false, description: 'Male, Female, or Other', aliases: ['gender', 'sex'] },
+  { key: 'allergies', label: 'Known Drug Allergies', required: false, description: 'Comma-separated (e.g. Penicillin, Sulfa)', aliases: ['allergies', 'drug allergies', 'allergy'] },
+  { key: 'chronicConditions', label: 'Chronic Conditions', required: false, description: 'Comma-separated (e.g. Hypertension, Asthma)', aliases: ['chronic conditions', 'conditions', 'medical conditions', 'diagnosis'] },
+  { key: 'loyaltyPoints', label: 'Loyalty Reward Points', required: false, description: 'Initial loyalty points (default 0)', aliases: ['loyalty points', 'reward points', 'points'] }
+];
+
+const SAMPLE_CUSTOMER_TEMPLATE = [
+  {
+    name: 'Kofi Owusu',
+    phone: '+233 24 123 4567',
+    email: 'kofi.owusu@example.com',
+    address: 'East Legon, Accra, Ghana',
+    dateOfBirth: '1988-06-14',
+    gender: 'Male',
+    allergies: 'Penicillin, Amoxicillin',
+    chronicConditions: 'Hypertension',
+    loyaltyPoints: '150'
+  },
+  {
+    name: 'Abena Mansa',
+    phone: '+233 20 987 6543',
+    email: 'abena.mansa@example.com',
+    address: 'Osu Ringway, Accra, Ghana',
+    dateOfBirth: '1992-11-23',
+    gender: 'Female',
+    allergies: 'None',
+    chronicConditions: 'Asthma',
+    loyaltyPoints: '75'
+  }
+];
+
 export const Customers: React.FC = () => {
-  const { customers, addCustomer, updateCustomer, deleteCustomer, settings } = usePharmacy();
+  const { customers, addCustomer, updateCustomer, deleteCustomer, settings, currentUser } = usePharmacy();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
@@ -101,6 +145,196 @@ export const Customers: React.FC = () => {
     setTimeout(() => setSuccessToast(null), 3500);
   };
 
+  // Export CSV Handler
+  const handleExportCSV = () => {
+    const dataToExport = filteredCustomers.length > 0 ? filteredCustomers : customers;
+    if (dataToExport.length === 0) {
+      alert('No patient records to export.');
+      return;
+    }
+
+    const columns = [
+      { key: 'id', label: 'Patient / Client ID' },
+      { key: 'name', label: 'Full Name' },
+      { key: 'phone', label: 'Phone Number' },
+      { key: 'email', label: 'Email Address' },
+      { key: 'address', label: 'Residential Address' },
+      { key: 'gender', label: 'Gender' },
+      { key: 'dateOfBirth', label: 'Date of Birth' },
+      { key: 'allergies', label: 'Known Drug Allergies' },
+      { key: 'chronicConditions', label: 'Chronic Conditions' },
+      { key: 'loyaltyPoints', label: 'Loyalty Points' },
+      { key: 'totalSpent', label: `Total Spent (${settings.currencySymbol})` },
+      { key: 'lastVisit', label: 'Last Visit Date' }
+    ];
+
+    const formattedData = dataToExport.map(c => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+      email: c.email || '',
+      address: c.address || '',
+      gender: c.gender || '',
+      dateOfBirth: c.dateOfBirth || '',
+      allergies: c.allergies ? c.allergies.join('; ') : '',
+      chronicConditions: c.chronicConditions ? c.chronicConditions.join('; ') : '',
+      loyaltyPoints: c.loyaltyPoints ?? 0,
+      totalSpent: c.totalSpent ?? 0,
+      lastVisit: c.lastVisit || ''
+    }));
+
+    const csvContent = generateCSV(columns, formattedData);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `patients-clients-${searchQuery.trim() ? 'filtered-' : 'all-'}${dateStr}.csv`;
+    downloadCSV(filename, csvContent);
+    setSuccessToast(`Exported ${dataToExport.length} patient records to CSV.`);
+    setTimeout(() => setSuccessToast(null), 3000);
+  };
+
+  // Import Validator
+  const validatePatientRow = (row: Record<string, string>): { isValid: boolean; error?: string } => {
+    if (!row.name || !row.name.trim()) {
+      return { isValid: false, error: 'Patient Name is required and cannot be empty.' };
+    }
+    if (!row.phone || !row.phone.trim()) {
+      return { isValid: false, error: 'Phone Number is required.' };
+    }
+    const cleanDigits = row.phone.replace(/[^0-9]/g, '');
+    if (cleanDigits.length < 6) {
+      return { isValid: false, error: 'Phone Number must contain at least 6 digits.' };
+    }
+    if (row.email && row.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(row.email.trim())) {
+        return { isValid: false, error: `Invalid email format: "${row.email}"` };
+      }
+    }
+    if (row.gender && row.gender.trim()) {
+      const g = row.gender.trim().toLowerCase();
+      if (g !== 'male' && g !== 'female' && g !== 'other') {
+        return { isValid: false, error: `Invalid gender: "${row.gender}". Expected Male, Female, or Other.` };
+      }
+    }
+    return { isValid: true };
+  };
+
+  // Duplicate Finder
+  const findCustomerDuplicate = (row: Record<string, string>, existing: Customer[]) => {
+    const cleanPhone = (row.phone || '').replace(/[^0-9]/g, '');
+    const cleanEmail = (row.email || '').trim().toLowerCase();
+
+    const matched = existing.find(c => {
+      const existingPhone = (c.phone || '').replace(/[^0-9]/g, '');
+      const existingEmail = (c.email || '').trim().toLowerCase();
+
+      if (cleanPhone && existingPhone && cleanPhone === existingPhone) {
+        return true;
+      }
+      if (cleanEmail && existingEmail && cleanEmail === existingEmail) {
+        return true;
+      }
+      return false;
+    });
+
+    if (matched) {
+      const matchReason = matched.phone === row.phone ? `Phone matches ${matched.name}` : `Email matches ${matched.name}`;
+      return { isDuplicate: true, matchDescription: matchReason, existingRecord: matched };
+    }
+
+    return { isDuplicate: false };
+  };
+
+  // Handle Confirm Import
+  const handleConfirmImport = async (
+    recordsToImport: Record<string, string>[],
+    recordsToUpdate: Record<string, string>[],
+    duplicateAction: 'skip' | 'update'
+  ) => {
+    let importedCount = 0;
+    let updatedCount = 0;
+
+    // 1. Process new records
+    recordsToImport.forEach(rec => {
+      const allergies = rec.allergies
+        ? rec.allergies.split(/[,;]/).map(a => a.trim()).filter(Boolean)
+        : [];
+      const chronicConditions = rec.chronicConditions
+        ? rec.chronicConditions.split(/[,;]/).map(c => c.trim()).filter(Boolean)
+        : [];
+      let gender: 'Male' | 'Female' | 'Other' | undefined = undefined;
+      if (rec.gender) {
+        const g = rec.gender.trim().toLowerCase();
+        if (g === 'male') gender = 'Male';
+        else if (g === 'female') gender = 'Female';
+        else if (g === 'other') gender = 'Other';
+      }
+
+      addCustomer({
+        name: rec.name.trim(),
+        phone: rec.phone.trim(),
+        email: rec.email?.trim() || undefined,
+        address: rec.address?.trim() || undefined,
+        dateOfBirth: rec.dateOfBirth?.trim() || undefined,
+        gender,
+        allergies,
+        chronicConditions
+      });
+      importedCount++;
+    });
+
+    // 2. Process updates for duplicates if selected
+    if (duplicateAction === 'update') {
+      recordsToUpdate.forEach(rec => {
+        const cleanPhone = (rec.phone || '').replace(/[^0-9]/g, '');
+        const cleanEmail = (rec.email || '').trim().toLowerCase();
+
+        const existing = customers.find(c => {
+          const existingPhone = (c.phone || '').replace(/[^0-9]/g, '');
+          const existingEmail = (c.email || '').trim().toLowerCase();
+          return (cleanPhone && existingPhone && cleanPhone === existingPhone) || (cleanEmail && existingEmail && cleanEmail === existingEmail);
+        });
+
+        if (existing) {
+          const allergies = rec.allergies
+            ? rec.allergies.split(/[,;]/).map(a => a.trim()).filter(Boolean)
+            : existing.allergies;
+          const chronicConditions = rec.chronicConditions
+            ? rec.chronicConditions.split(/[,;]/).map(c => c.trim()).filter(Boolean)
+            : existing.chronicConditions;
+
+          let gender = existing.gender;
+          if (rec.gender) {
+            const g = rec.gender.trim().toLowerCase();
+            if (g === 'male') gender = 'Male';
+            else if (g === 'female') gender = 'Female';
+            else if (g === 'other') gender = 'Other';
+          }
+
+          updateCustomer(existing.id, {
+            name: rec.name?.trim() || existing.name,
+            phone: rec.phone?.trim() || existing.phone,
+            email: rec.email?.trim() || existing.email,
+            address: rec.address?.trim() || existing.address,
+            dateOfBirth: rec.dateOfBirth?.trim() || existing.dateOfBirth,
+            gender,
+            allergies,
+            chronicConditions
+          });
+          updatedCount++;
+        }
+      });
+    }
+
+    setSuccessToast(`CSV Import: ${importedCount} added${updatedCount > 0 ? `, ${updatedCount} updated` : ''}.`);
+    setTimeout(() => setSuccessToast(null), 3500);
+
+    return {
+      importedCount,
+      updatedCount,
+      skippedCount: duplicateAction === 'skip' ? recordsToUpdate.length : 0
+    };
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast Alert */}
@@ -125,12 +359,35 @@ export const Customers: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
-        >
-          <Plus className="w-4 h-4" /> Register New Patient
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition shadow-sm cursor-pointer"
+            title="Import patient and client records from CSV"
+          >
+            <Upload className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Import CSV</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            disabled={customers.length === 0}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Export patient records to CSV"
+          >
+            <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Export CSV ({filteredCustomers.length})</span>
+          </button>
+
+          <button
+            onClick={handleOpenAdd}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Register New Patient
+          </button>
+        </div>
       </div>
 
       {/* Search Input Bar */}
@@ -407,6 +664,21 @@ export const Customers: React.FC = () => {
         }
         confirmButtonText="Delete Patient"
         isDeleting={isDeletingCustomer}
+      />
+
+      {/* CSV Import Modal */}
+      <CsvImportModal<Customer>
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Import Patient & Client Profiles"
+        entityName="Patient"
+        targetFields={CUSTOMER_TARGET_FIELDS}
+        sampleTemplateData={SAMPLE_CUSTOMER_TEMPLATE}
+        templateFilename="patient-clients-import-template.csv"
+        existingRecords={customers}
+        duplicateFinder={findCustomerDuplicate}
+        validator={validatePatientRow}
+        onConfirmImport={handleConfirmImport}
       />
     </div>
   );

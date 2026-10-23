@@ -4,6 +4,8 @@ import { formatCurrency } from '../lib/formatters';
 import { Supplier } from '../types';
 import { SearchInput } from '../components/SearchInput';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
+import { CsvImportModal, CsvTargetField } from '../components/CsvImportModal';
+import { generateCSV, downloadCSV } from '../lib/csvHelper';
 import {
   Truck,
   Plus,
@@ -18,12 +20,56 @@ import {
   FileText,
   Tag,
   ShieldAlert,
-  Building
+  Building,
+  Upload,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
+
+const SUPPLIER_TARGET_FIELDS: CsvTargetField[] = [
+  { key: 'name', label: 'Supplier / Vendor Name', required: true, description: 'Company or distributor name', aliases: ['supplier name', 'vendor name', 'company', 'vendor', 'name'] },
+  { key: 'contactPerson', label: 'Contact Person', required: true, description: 'Sales representative or account manager', aliases: ['contact person', 'representative', 'contact', 'rep', 'manager'] },
+  { key: 'phone', label: 'Phone Number', required: true, description: 'Direct phone or dispatch number', aliases: ['phone', 'mobile', 'telephone', 'contact number', 'phone number'] },
+  { key: 'email', label: 'Email Address', required: false, description: 'Orders & invoicing email', aliases: ['email', 'email address', 'e-mail'] },
+  { key: 'address', label: 'Business Address', required: false, description: 'Warehouse or office location', aliases: ['address', 'location', 'office', 'warehouse'] },
+  { key: 'category', label: 'Category', required: false, description: 'e.g. Pharmaceutical Wholesaler, Manufacturer', aliases: ['category', 'supplier category', 'type'] },
+  { key: 'paymentTerms', label: 'Payment Terms', required: false, description: 'e.g. Net 30, Net 15, COD', aliases: ['payment terms', 'terms'] },
+  { key: 'taxId', label: 'Tax ID / TIN', required: false, description: 'Business registration or tax identification number', aliases: ['tax id', 'tin', 'vat number'] },
+  { key: 'notes', label: 'Notes', required: false, description: 'Delivery schedules or terms', aliases: ['notes', 'remarks'] },
+  { key: 'status', label: 'Status', required: false, description: 'Active or Inactive (defaults to Active)', aliases: ['status'] }
+];
+
+const SAMPLE_SUPPLIER_TEMPLATE = [
+  {
+    name: 'Ernest Chemists Wholesale Ltd',
+    contactPerson: 'Kwame Asante',
+    phone: '+233 30 222 3344',
+    email: 'orders@ernestchemists.example',
+    address: 'Industrial Area, Ring Road, Accra',
+    category: 'Pharmaceutical Wholesaler',
+    paymentTerms: 'Net 30',
+    taxId: 'TIN-GH-8829104',
+    notes: 'Primary bulk generic medicines distributor',
+    status: 'Active'
+  },
+  {
+    name: 'Kinapharma Pharmaceuticals',
+    contactPerson: 'Ama Serwaa',
+    phone: '+233 30 255 6677',
+    email: 'distribution@kinapharma.example',
+    address: 'North Industrial Area, Accra',
+    category: 'Manufacturer',
+    paymentTerms: 'Net 15',
+    taxId: 'TIN-GH-9912048',
+    notes: 'Local manufacturer of pain relief and antibiotics',
+    status: 'Active'
+  }
+];
 
 export const Suppliers: React.FC = () => {
   const { suppliers, addSupplier, updateSupplier, deleteSupplier, settings, currentUser } = usePharmacy();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -159,6 +205,169 @@ export const Suppliers: React.FC = () => {
     setTimeout(() => setSuccessMessage(null), 4000);
   };
 
+  // Export CSV Handler
+  const handleExportCSV = () => {
+    const dataToExport = filteredSuppliers.length > 0 ? filteredSuppliers : suppliers;
+    if (dataToExport.length === 0) {
+      alert('No supplier records to export.');
+      return;
+    }
+
+    const columns = [
+      { key: 'id', label: 'Supplier ID' },
+      { key: 'name', label: 'Supplier Name' },
+      { key: 'contactPerson', label: 'Contact Person' },
+      { key: 'phone', label: 'Phone Number' },
+      { key: 'email', label: 'Email Address' },
+      { key: 'address', label: 'Address' },
+      { key: 'category', label: 'Category' },
+      { key: 'paymentTerms', label: 'Payment Terms' },
+      { key: 'taxId', label: 'Tax ID / TIN' },
+      { key: 'balanceOwed', label: `Outstanding Payable (${settings.currencySymbol})` },
+      { key: 'totalPurchased', label: `Total Purchased (${settings.currencySymbol})` },
+      { key: 'status', label: 'Status' },
+      { key: 'notes', label: 'Notes' }
+    ];
+
+    const formattedData = dataToExport.map(s => ({
+      id: s.id,
+      name: s.name,
+      contactPerson: s.contactPerson || '',
+      phone: s.phone,
+      email: s.email || '',
+      address: s.address || '',
+      category: s.category || '',
+      paymentTerms: s.paymentTerms || '',
+      taxId: s.taxId || '',
+      balanceOwed: s.balanceOwed ?? 0,
+      totalPurchased: s.totalPurchased ?? 0,
+      status: s.status || 'Active',
+      notes: s.notes || ''
+    }));
+
+    const csvContent = generateCSV(columns, formattedData);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `suppliers-${searchQuery.trim() ? 'filtered-' : 'all-'}${dateStr}.csv`;
+    downloadCSV(filename, csvContent);
+    setSuccessMessage(`Exported ${dataToExport.length} supplier records to CSV.`);
+    setTimeout(() => setSuccessMessage(null), 3500);
+  };
+
+  // Import Validator
+  const validateSupplierRow = (row: Record<string, string>): { isValid: boolean; error?: string } => {
+    if (!row.name || !row.name.trim()) {
+      return { isValid: false, error: 'Supplier / Vendor Name is required.' };
+    }
+    if (!row.phone || !row.phone.trim()) {
+      return { isValid: false, error: 'Phone Number is required.' };
+    }
+    const cleanDigits = row.phone.replace(/[^0-9]/g, '');
+    if (cleanDigits.length < 6) {
+      return { isValid: false, error: 'Phone Number must contain at least 6 digits.' };
+    }
+    if (row.email && row.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(row.email.trim())) {
+        return { isValid: false, error: `Invalid email format: "${row.email}"` };
+      }
+    }
+    if (row.status && row.status.trim()) {
+      const s = row.status.trim().toLowerCase();
+      if (s !== 'active' && s !== 'inactive') {
+        return { isValid: false, error: `Invalid status: "${row.status}". Expected Active or Inactive.` };
+      }
+    }
+    return { isValid: true };
+  };
+
+  // Duplicate Finder
+  const findSupplierDuplicate = (
+    row: Record<string, string>,
+    existing: Supplier[]
+  ): { isDuplicate: boolean; matchDescription?: string; existingRecord?: Supplier } => {
+    const rawId = row.id ? row.id.trim().toLowerCase() : '';
+    const rawName = row.name ? row.name.trim().toLowerCase() : '';
+    const rawPhone = row.phone ? row.phone.replace(/[^0-9]/g, '') : '';
+    const rawTaxId = row.taxId ? row.taxId.trim().toLowerCase() : '';
+
+    const matched = existing.find(s => {
+      if (rawId && s.id.toLowerCase() === rawId) return true;
+      if (rawTaxId && s.taxId && s.taxId.trim().toLowerCase() === rawTaxId) return true;
+      if (rawName && s.name.trim().toLowerCase() === rawName) return true;
+      if (rawPhone && s.phone.replace(/[^0-9]/g, '') === rawPhone) return true;
+      return false;
+    });
+
+    if (matched) {
+      let reason = `Supplier "${matched.name}" already exists`;
+      if (rawTaxId && matched.taxId && matched.taxId.toLowerCase() === rawTaxId) {
+        reason = `TIN/Tax ID matches "${matched.name}"`;
+      } else if (rawPhone && matched.phone.replace(/[^0-9]/g, '') === rawPhone) {
+        reason = `Phone number matches "${matched.name}"`;
+      }
+      return { isDuplicate: true, matchDescription: reason, existingRecord: matched };
+    }
+    return { isDuplicate: false };
+  };
+
+  // Import Confirmation Handler
+  const handleConfirmImportSuppliers = async (
+    recordsToImport: Record<string, string>[],
+    recordsToUpdate: Record<string, string>[],
+    duplicateAction: 'skip' | 'update'
+  ): Promise<{ importedCount: number; updatedCount: number; skippedCount: number }> => {
+    let imported = 0;
+    let updated = 0;
+
+    for (const row of recordsToImport) {
+      const statusVal = row.status && row.status.trim().toLowerCase() === 'inactive' ? 'Inactive' : 'Active';
+      addSupplier({
+        name: row.name.trim(),
+        contactPerson: (row.contactPerson || '').trim(),
+        phone: row.phone.trim(),
+        email: (row.email || '').trim(),
+        address: (row.address || '').trim(),
+        category: (row.category || 'Pharmaceutical Wholesaler').trim(),
+        paymentTerms: (row.paymentTerms || 'Net 30').trim(),
+        taxId: (row.taxId || '').trim(),
+        notes: (row.notes || '').trim(),
+        status: statusVal
+      });
+      imported++;
+    }
+
+    if (duplicateAction === 'update') {
+      for (const row of recordsToUpdate) {
+        const dup = findSupplierDuplicate(row, suppliers);
+        if (dup.existingRecord) {
+          const statusVal = row.status && row.status.trim().toLowerCase() === 'inactive' ? 'Inactive' : 'Active';
+          updateSupplier(dup.existingRecord.id, {
+            name: row.name ? row.name.trim() : dup.existingRecord.name,
+            contactPerson: row.contactPerson !== undefined ? row.contactPerson.trim() : dup.existingRecord.contactPerson,
+            phone: row.phone ? row.phone.trim() : dup.existingRecord.phone,
+            email: row.email !== undefined ? row.email.trim() : dup.existingRecord.email,
+            address: row.address !== undefined ? row.address.trim() : dup.existingRecord.address,
+            category: row.category !== undefined ? row.category.trim() : dup.existingRecord.category,
+            paymentTerms: row.paymentTerms !== undefined ? row.paymentTerms.trim() : dup.existingRecord.paymentTerms,
+            taxId: row.taxId !== undefined ? row.taxId.trim() : dup.existingRecord.taxId,
+            notes: row.notes !== undefined ? row.notes.trim() : dup.existingRecord.notes,
+            status: statusVal
+          });
+          updated++;
+        }
+      }
+    }
+
+    setSuccessMessage(`Supplier import: ${imported} added${updated > 0 ? `, ${updated} updated` : ''}.`);
+    setTimeout(() => setSuccessMessage(null), 4500);
+
+    return {
+      importedCount: imported,
+      updatedCount: updated,
+      skippedCount: duplicateAction === 'skip' ? recordsToUpdate.length : 0
+    };
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast notifications */}
@@ -183,14 +392,36 @@ export const Suppliers: React.FC = () => {
           </p>
         </div>
 
-        {canManageSuppliers && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {canManageSuppliers && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700/60 transition shadow-sm"
+              title="Import suppliers from CSV file"
+            >
+              <Upload className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Import CSV</span>
+            </button>
+          )}
+
           <button
-            onClick={handleOpenAddModal}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm"
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700/60 transition shadow-sm"
+            title="Export supplier records to CSV"
           >
-            <Plus className="w-4 h-4" /> Add New Supplier
+            <Download className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span>Export CSV {filteredSuppliers.length > 0 && `(${filteredSuppliers.length})`}</span>
           </button>
-        )}
+
+          {canManageSuppliers && (
+            <button
+              onClick={handleOpenAddModal}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> Add New Supplier
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search Input Bar */}
@@ -704,6 +935,21 @@ export const Suppliers: React.FC = () => {
         }
         confirmButtonText="Remove Supplier"
         isDeleting={isDeletingSupplier}
+      />
+
+      {/* CSV Import Modal */}
+      <CsvImportModal<Supplier>
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Import Supplier Directory"
+        entityName="Supplier"
+        targetFields={SUPPLIER_TARGET_FIELDS}
+        sampleTemplateData={SAMPLE_SUPPLIER_TEMPLATE}
+        templateFilename="suppliers-directory-template.csv"
+        existingRecords={suppliers}
+        validator={validateSupplierRow}
+        duplicateFinder={findSupplierDuplicate}
+        onConfirmImport={handleConfirmImportSuppliers}
       />
     </div>
   );

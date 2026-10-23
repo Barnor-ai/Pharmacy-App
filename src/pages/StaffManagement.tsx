@@ -110,7 +110,10 @@ export const StaffManagement: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const isOwnerOrAdmin = currentUser.role === 'Super Admin' || currentUser.role === 'Store Manager';
+  const isOwnerOrAdmin =
+    currentUser.role === 'Super Admin' ||
+    currentUser.role === 'Pharmacy Owner' ||
+    currentUser.role === 'Administrator';
 
   const trimmedSearch = searchQuery.trim().toLowerCase();
 
@@ -418,6 +421,31 @@ export const StaffManagement: React.FC = () => {
       setIsDeleting(false);
     }
   };
+
+  if (!isOwnerOrAdmin) {
+    return (
+      <div className="p-6 space-y-6 max-w-4xl mx-auto animate-in fade-in">
+        <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-3">
+          <div className="flex items-center gap-3">
+            <ShieldAlert className="w-8 h-8 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div>
+              <h2 className="text-lg font-bold">Access Restricted: Administrator Privileges Required</h2>
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                Staff member creation, role assignment, and credential modification is strictly reserved for Pharmacy Administrators and System Owners.
+              </p>
+            </div>
+          </div>
+          <div className="text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+            <p><strong>Your Account:</strong> {currentUser.name} ({currentUser.email})</p>
+            <p><strong>Active Role:</strong> <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold">{currentUser.role}</span></p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Your account does not hold administrator privileges. Role-management actions are disabled by system security policies to prevent unauthorized privilege escalation. Contact your designated Pharmacy Owner or Administrator if you require elevated permissions.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
