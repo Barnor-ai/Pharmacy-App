@@ -17,6 +17,7 @@ import { AIAssistant } from './pages/AIAssistant';
 import { UsersPage } from './pages/UsersPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const MainContent: React.FC = () => {
   const { activeTab } = usePharmacy();
@@ -113,7 +114,9 @@ const AppContent: React.FC = () => {
   // 4. Normal authenticated workspace
   return (
     <Layout>
-      <MainContent />
+      <ErrorBoundary fallbackTitle="An interface view error occurred">
+        <MainContent />
+      </ErrorBoundary>
     </Layout>
   );
 };

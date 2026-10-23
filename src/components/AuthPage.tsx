@@ -115,40 +115,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
         {/* Right Side: Form Subcomponents */}
         <div className="md:col-span-7 p-6 sm:p-8 flex flex-col justify-center bg-slate-900">
-          {/* Top Switcher Tabs for Login / Sign Up */}
-          {(mode === 'login' || mode === 'signup') && (
+          {/* Top Switcher Tabs for Sign Up */}
+          {mode === 'signup' && (
             <div className="flex rounded-xl bg-slate-800/80 p-1 mb-6 border border-slate-700/60">
               <button
                 type="button"
                 onClick={() => handleSwitchMode('login')}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
-                  mode === 'login'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
+                className="flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-slate-400 hover:text-white"
               >
                 Sign In
               </button>
               <button
                 type="button"
                 onClick={() => handleSwitchMode('signup')}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
-                  mode === 'signup'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
+                className="flex-1 py-2 text-xs font-bold rounded-lg transition cursor-pointer bg-emerald-600 text-white shadow-md"
               >
                 Create Account
               </button>
             </div>
-          )}
-
-          {/* Render Active Auth Subcomponent */}
-          {mode === 'login' && (
-            <LoginPage
-              onSwitchToSignUp={() => handleSwitchMode('signup')}
-              onSwitchToForgotPassword={() => handleSwitchMode('forgot-password')}
-            />
           )}
 
           {mode === 'signup' && (

@@ -93,6 +93,8 @@ export const Suppliers: React.FC = () => {
 
   const canManageSuppliers =
     currentUser.role === 'Super Admin' ||
+    currentUser.role === 'Pharmacy Owner' ||
+    currentUser.role === 'Administrator' ||
     currentUser.role === 'Store Manager' ||
     currentUser.role === 'Pharmacist';
 

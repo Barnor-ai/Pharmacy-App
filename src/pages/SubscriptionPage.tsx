@@ -33,7 +33,7 @@ import { getPaymentProvider, generatePaystackReference } from '../lib/payments';
 import { SubscriptionInvoiceModal } from '../components/SubscriptionInvoiceModal';
 
 export const SubscriptionPage: React.FC = () => {
-  const { currentUser, organizationId, pharmacySettings } = usePharmacy();
+  const { currentUser, organizationId, settings: pharmacySettings } = usePharmacy();
   const {
     subscription,
     plan,

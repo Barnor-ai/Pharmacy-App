@@ -234,7 +234,7 @@ export const StaffManagement: React.FC = () => {
             recipientEmail: inviteEmail,
             role: inviteRole,
             temporaryPassword: invitePassword,
-            organizationName: settings?.name || 'PharmaCore Pharmacy',
+            organizationName: settings?.pharmacyName || 'PharmaCore Pharmacy',
             senderName: currentUser.name || 'Administrator',
             customMessage: customEmailNote
           });
@@ -283,7 +283,7 @@ export const StaffManagement: React.FC = () => {
         recipientEmail: activeEmailTarget.email,
         role: activeEmailTarget.role,
         temporaryPassword: activeEmailTarget.temporaryPassword,
-        organizationName: settings?.name || 'PharmaCore Pharmacy',
+        organizationName: settings?.pharmacyName || 'PharmaCore Pharmacy',
         senderName: currentUser.name || 'Administrator',
         customMessage: activeEmailTarget.customNote
       });
@@ -302,6 +302,9 @@ export const StaffManagement: React.FC = () => {
         body: '',
         mailtoUrl: '',
         loginUrl: '',
+        gmailComposeUrl: '',
+        outlookComposeUrl: '',
+        yahooComposeUrl: '',
         error: err?.message
       });
     } finally {
@@ -525,7 +528,7 @@ export const StaffManagement: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => setActiveTab('subscription')}
+            onClick={() => setActiveTab('settings')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shrink-0 cursor-pointer"
           >
             <CreditCard className="w-3.5 h-3.5" />
@@ -548,7 +551,7 @@ export const StaffManagement: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => setActiveTab('subscription')}
+            onClick={() => setActiveTab('settings')}
             className="flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shrink-0 cursor-pointer"
           >
             <span>Upgrade Tier</span>
@@ -565,7 +568,7 @@ export const StaffManagement: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={() => setActiveTab('subscription')}
+            onClick={() => setActiveTab('settings')}
             className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
           >
             View Plans &rarr;
@@ -587,7 +590,7 @@ export const StaffManagement: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => setActiveTab('subscription')}
+            onClick={() => setActiveTab('settings')}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shrink-0 cursor-pointer"
           >
             <CreditCard className="w-3.5 h-3.5" />
@@ -1071,7 +1074,7 @@ export const StaffManagement: React.FC = () => {
                     recipientEmail: activeEmailTarget.email,
                     role: activeEmailTarget.role,
                     temporaryPassword: activeEmailTarget.temporaryPassword,
-                    organizationName: settings?.name,
+                    organizationName: settings?.pharmacyName,
                     senderName: currentUser.name,
                     customMessage: activeEmailTarget.customNote
                   });
@@ -1147,7 +1150,7 @@ export const StaffManagement: React.FC = () => {
                     recipientEmail: activeEmailTarget.email,
                     role: activeEmailTarget.role,
                     temporaryPassword: activeEmailTarget.temporaryPassword,
-                    organizationName: settings?.name,
+                    organizationName: settings?.pharmacyName,
                     senderName: currentUser.name,
                     customMessage: activeEmailTarget.customNote
                   });

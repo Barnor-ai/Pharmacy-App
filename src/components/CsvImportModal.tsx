@@ -91,8 +91,6 @@ export function CsvImportModal<T = any>({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null;
-
   // 1. Download CSV Template
   const handleDownloadTemplate = () => {
     const columns = targetFields.map(f => ({
@@ -176,14 +174,17 @@ export function CsvImportModal<T = any>({
     }
   };
 
+  const [importError, setImportError] = useState<string | null>(null);
+
   // 3. Mapping validation
   const missingRequiredFields = useMemo(() => {
+    if (!isOpen) return [];
     return targetFields.filter(f => f.required && !fieldMappings[f.key]);
-  }, [targetFields, fieldMappings]);
+  }, [isOpen, targetFields, fieldMappings]);
 
   // 4. Analyze rows for Preview Step
   const analyzedRows: AnalyzedRow[] = useMemo(() => {
-    if (currentStep !== 'preview' && currentStep !== 'summary') return [];
+    if (!isOpen || (currentStep !== 'preview' && currentStep !== 'summary')) return [];
 
     return csvRows.map((row, idx) => {
       const mappedRecord: Record<string, string> = {};
@@ -223,15 +224,16 @@ export function CsvImportModal<T = any>({
         status: 'valid'
       };
     });
-  }, [csvRows, fieldMappings, targetFields, validator, duplicateFinder, existingRecords, currentStep]);
+  }, [isOpen, csvRows, fieldMappings, targetFields, validator, duplicateFinder, existingRecords, currentStep]);
 
   const stats = useMemo(() => {
+    if (!isOpen) return { total: 0, valid: 0, duplicates: 0, invalid: 0 };
     const total = analyzedRows.length;
     const valid = analyzedRows.filter(r => r.status === 'valid').length;
     const duplicates = analyzedRows.filter(r => r.status === 'duplicate').length;
     const invalid = analyzedRows.filter(r => r.status === 'invalid').length;
     return { total, valid, duplicates, invalid };
-  }, [analyzedRows]);
+  }, [isOpen, analyzedRows]);
 
   // 5. Download Rejected Records CSV with Reasons
   const handleDownloadRejectedCSV = () => {
@@ -257,6 +259,7 @@ export function CsvImportModal<T = any>({
   // 6. Execute Import
   const handleProceedWithImport = async () => {
     setIsProcessing(true);
+    setImportError(null);
     try {
       const validRecords = analyzedRows.filter(r => r.status === 'valid').map(r => r.mapped);
       const duplicateRecords = analyzedRows.filter(r => r.status === 'duplicate').map(r => r.mapped);
@@ -268,7 +271,7 @@ export function CsvImportModal<T = any>({
       setImportSummary(result);
       setCurrentStep('summary');
     } catch (err: any) {
-      alert(`Import error: ${err?.message || 'An error occurred during import'}`);
+      setImportError(err?.message || 'An error occurred during import. Please verify data formats and try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -281,9 +284,12 @@ export function CsvImportModal<T = any>({
     setFieldMappings({});
     setCurrentStep('upload');
     setFileError(null);
+    setImportError(null);
     setImportSummary(null);
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -384,6 +390,22 @@ export function CsvImportModal<T = any>({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          {importError && (
+            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{importError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImportError(null)}
+                className="hover:opacity-75 p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* STEP 1: Upload & Download Template */}
           {currentStep === 'upload' && (
             <div className="space-y-4">

@@ -24,7 +24,7 @@ export const SubscriptionInvoiceModal: React.FC<SubscriptionInvoiceModalProps> =
   payment,
   onClose
 }) => {
-  const { pharmacySettings } = usePharmacy();
+  const { settings: pharmacySettings } = usePharmacy();
 
   const handlePrint = () => {
     window.print();
@@ -53,8 +53,8 @@ export const SubscriptionInvoiceModal: React.FC<SubscriptionInvoiceModalProps> =
       doc.setTextColor(100, 116, 139);
       doc.text(`Address: ${pharmacySettings.address || 'Central Headquarters'}`, 14, 44);
       doc.text(`Phone: ${pharmacySettings.phone || 'N/A'} | Email: ${pharmacySettings.email || 'support@pharmacore-saas.com'}`, 14, 49);
-      if (pharmacySettings.taxNumber) {
-        doc.text(`Tax / VAT ID: ${pharmacySettings.taxNumber}`, 14, 54);
+      if (pharmacySettings.vatNumber) {
+        doc.text(`Tax / VAT ID: ${pharmacySettings.vatNumber}`, 14, 54);
       }
 
       // Invoice Details (Right Side)

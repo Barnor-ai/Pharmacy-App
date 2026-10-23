@@ -38,7 +38,11 @@ export const DataExportPage: React.FC = () => {
   const { plan } = useSubscription();
 
   // Access control checks
-  const isOwnerOrAdmin = currentUser.role === 'Super Admin' || currentUser.role === 'Store Manager';
+  const isOwnerOrAdmin =
+    currentUser.role === 'Super Admin' ||
+    currentUser.role === 'Pharmacy Owner' ||
+    currentUser.role === 'Administrator' ||
+    currentUser.role === 'Store Manager';
   const hasNoAccess = !isOwnerOrAdmin;
 
   // State

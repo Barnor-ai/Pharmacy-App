@@ -2017,7 +2017,7 @@ export const FinancialsPage: React.FC = () => {
                       </span>
                     </div>
                     <span className="font-bold">
-                      {formatCurrency(item.totalPrice, settings.currencySymbol)}
+                      {formatCurrency(item.total, settings.currencySymbol)}
                     </span>
                   </div>
                 ))}
